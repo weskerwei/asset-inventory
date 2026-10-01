@@ -1,0 +1,15 @@
+{
+  "name": "財產盤點",
+  "short_name": "財產盤點",
+  "description": "匯入財產目錄清冊、列印條碼標籤、手機掃描盤點並匯出 Excel",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#1f5f8b",
+  "lang": "zh-Hant-TW",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,1452 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5f8b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="財產盤點">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>財產盤點</title>
+<style>
+:root{
+  --bg:#f4f6f8; --card:#fff; --ink:#1d2730; --muted:#66727e; --line:#dfe4e9;
+  --pri:#1f5f8b; --pri-ink:#fff; --ok:#1e8e4e; --ok-bg:#e3f5ea; --warn:#a86a00; --warn-bg:#fff3d6;
+  --bad:#c0392b; --bad-bg:#fde6e3; --chip:#eef2f6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171c; --card:#1b232a; --ink:#e6ebef; --muted:#93a0ab; --line:#2c3842;
+    --pri:#4a9bd1; --pri-ink:#0b1720; --ok:#52c27d; --ok-bg:#16301f; --warn:#e3a93a; --warn-bg:#33280f;
+    --bad:#ef7a6c; --bad-bg:#3a1c18; --chip:#25313a;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif}
+button,input,select{font:inherit;color:inherit}
+header.top{position:sticky;top:0;z-index:5;background:var(--pri);color:var(--pri-ink);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
+header.top h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header.top small{opacity:.85;font-size:12px}
+main{max-width:980px;margin:0 auto;padding:14px 16px calc(84px + env(safe-area-inset-bottom))}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;border:0;background:none;padding:8px 0 7px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button.on{color:var(--pri);font-weight:600}
+section.view{display:none}
+section.view.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 10px}
+.card h3{font-size:14px;margin:12px 0 6px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:140px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 14px;cursor:pointer;white-space:nowrap}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:600}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+input[type=text],input[type=search],select{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 10px;width:100%;min-width:0}
+label.f{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
+label.f > input, label.f > select{margin-top:3px}
+.muted{color:var(--muted)} .small{font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi b{display:block;font-size:24px;line-height:1.2;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+.kpi.ok b{color:var(--ok)} .kpi.bad b{color:var(--bad)} .kpi.warn b{color:var(--warn)}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.bar{height:8px;border-radius:5px;background:var(--chip);overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--ok)}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th,table.t td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+table.t th{font-size:12px;color:var(--muted);font-weight:600}
+table.t td.n,table.t th.n{text-align:right;font-variant-numeric:tabular-nums}
+table.t tr.click{cursor:pointer}
+table.t tr.click:hover td{background:var(--chip)}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.bad{background:var(--bad-bg);color:var(--bad)} .pill.warn{background:var(--warn-bg);color:var(--warn)}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--card)}
+.seg button{flex:1;border:0;background:none;padding:8px 6px;font-size:13px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--pri);color:var(--pri-ink);font-weight:600}
+.list .it{display:flex;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .it:last-child{border-bottom:0}
+.list .it .m{flex:1;min-width:0}
+.list .it .id{font-weight:600;font-variant-numeric:tabular-nums}
+.list .it .nm{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--line)}
+.dot.ok{background:var(--ok)} .dot.ex{background:var(--warn)}
+#reader{width:100%;max-width:520px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;min-height:60px}
+#reader video{border-radius:12px}
+.result{border-radius:12px;padding:12px 14px;margin-top:10px;border:1px solid var(--line)}
+.result.ok{background:var(--ok-bg);border-color:var(--ok)}
+.result.dup{background:var(--warn-bg);border-color:var(--warn)}
+.result.bad{background:var(--bad-bg);border-color:var(--bad)}
+.result .big{font-size:18px;font-weight:700}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;cursor:pointer}
+.drop.hover{border-color:var(--pri)}
+dialog{border:0;border-radius:14px;padding:0;max-width:520px;width:calc(100% - 32px);background:var(--card);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog .dh{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:700}
+dialog .db{padding:14px 16px;max-height:65vh;overflow:auto}
+dialog .df{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:.95}
+.cats label{display:flex;gap:8px;align-items:center;padding:4px 0}
+.empty{text-align:center;padding:30px 10px;color:var(--muted)}
+.hide{display:none!important}
+input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
+
+/* 標籤預覽與列印 */
+#labelPreview{display:flex;flex-wrap:wrap;gap:8px;max-height:420px;overflow:auto;padding:8px;background:var(--chip);border-radius:10px}
+#labelPreview .lbl{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.lbl{color:#000;background:#fff;overflow:hidden;position:relative;font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;display:flex;padding:1.5mm 2mm;gap:2mm}
+.lbl.qr{flex-direction:row;align-items:center}
+.lbl.qr .code{height:100%;aspect-ratio:1/1;flex:none}
+.lbl.qr .code svg{width:100%;height:100%;display:block}
+.lbl.qr .txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:.6mm}
+.lbl.bc{flex-direction:column;justify-content:center;align-items:stretch;gap:.6mm}
+.lbl.bc .code svg{width:100%;display:block}
+.lbl .co{font-size:2.3mm;line-height:1.15;border-bottom:.2mm solid #000;padding-bottom:.4mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl .lid{font-weight:700;font-size:3.6mm;line-height:1.15;font-family:Consolas,"Courier New",monospace;white-space:nowrap}
+.lbl .lnm{font-size:2.8mm;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.lbl .lsp{font-size:2.2mm;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl.bc .lid,.lbl.bc .lnm,.lbl.bc .co,.lbl.bc .lsp{text-align:center}
+#printArea{display:none}
+@media print{
+  body{background:#fff}
+  header.top,nav.tabs,main,dialog,.toast{display:none!important}
+  #printArea{display:block}
+  #printArea .sheet{display:grid;page-break-after:always;break-after:page}
+  #printArea .sheet:last-child{page-break-after:auto;break-after:auto}
+  #printArea .lbl{outline:none}
+  #printArea.guides .lbl{outline:.1mm dashed #bbb;outline-offset:-.1mm}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 id="hdrTitle">財產盤點</h1>
+  <small id="hdrSub"></small>
+</header>
+
+<main>
+<!-- ============ 總覽 ============ -->
+<section class="view on" id="v-home">
+  <div id="homeEmpty" class="card hide">
+    <h2>開始使用</h2>
+    <p class="muted">尚未匯入財產清冊。請到「設定」匯入財產目錄清冊 Excel（可直接匯入會計系統產出的「財產目錄清冊」）。</p>
+    <button class="btn pri" data-go="settings">前往匯入</button>
+  </div>
+  <div id="homeBody">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div style="font-weight:700;font-size:16px" id="auditName">—</div>
+          <div class="small muted" id="auditMeta"></div>
+        </div>
+        <button class="btn sm" id="btnEditAudit">編輯盤點資訊</button>
+      </div>
+      <div style="margin-top:10px" class="bar"><i id="totalBar" style="width:0"></i></div>
+      <div class="small muted" style="margin-top:4px" id="totalPct"></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b id="kTotal">0</b><span>應盤點</span></div>
+      <div class="kpi ok"><b id="kDone">0</b><span>已盤點</span></div>
+      <div class="kpi bad"><b id="kTodo">0</b><span>未盤點</span></div>
+      <div class="kpi warn"><b id="kExtra">0</b><span>清冊外條碼</span></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px">
+        <h2 style="margin:0">各部門盤點統計</h2>
+        <div class="seg" style="width:190px" id="statSeg">
+          <button data-g="dept" class="on">依部門</button><button data-g="cat">依資產類別</button>
+        </div>
+      </div>
+      <table class="t" id="statTable"></table>
+      <p class="small muted" style="margin:8px 0 0">點選任一列可查看該組的明細。</p>
+    </div>
+    <div class="row">
+      <button class="btn pri grow" data-go="scan">開始掃描盤點</button>
+      <button class="btn grow" id="btnExportHome">匯出 Excel 盤點結果</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 掃描 ============ -->
+<section class="view" id="v-scan">
+  <div class="card">
+    <div class="row">
+      <label class="f grow" style="margin:0">盤點人 <span style="color:var(--bad)">*必填</span><input type="text" id="scanBy" placeholder="請先輸入姓名，例如：王小明" autocomplete="name" enterkeyhint="done"></label>
+      <label class="f grow" style="margin:0">目前位置（選填）<input type="text" id="scanLoc" placeholder="例如：3F 研發區"></label>
+    </div>
+    <div class="small" id="byHint" style="color:var(--bad);margin-top:6px">請先填寫盤點人姓名，才能開始掃描、手動盤點或確認標籤黏貼。</div>
+  </div>
+  <div class="card">
+    <div class="seg" id="modeSeg" style="margin-bottom:10px">
+      <button data-m="audit" class="on">財產盤點</button><button data-m="affix">標籤黏貼確認</button>
+    </div>
+    <div id="modeBanner" class="small hide" style="background:var(--warn-bg);color:var(--warn);border-radius:9px;padding:7px 10px;margin-bottom:10px">
+      目前為<b>標籤黏貼確認</b>模式：掃描剛貼好的標籤，只記錄「已黏貼」，<b>不會</b>記成盤點。
+    </div>
+    <div id="reader"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn pri grow" id="btnCam">開啟相機掃描</button>
+      <select id="camSel" class="grow hide"></select>
+    </div>
+    <div class="row small muted" style="margin-top:8px">
+      <label><input type="checkbox" id="optBeep" checked> 提示音</label>
+      <label><input type="checkbox" id="optVibe" checked> 震動</label>
+      <span class="grow"></span>
+      <span id="sessionCount"></span>
+    </div>
+    <div id="scanResult"></div>
+  </div>
+  <div class="card">
+    <h2 id="manualTitle">手動輸入財產編號</h2>
+    <p class="small muted" style="margin-top:-6px">標籤破損或無法掃描時使用。</p>
+    <div class="row">
+      <input type="text" id="manualId" class="grow" list="idList" placeholder="輸入或選擇財產編號" autocapitalize="characters" autocomplete="off">
+      <datalist id="idList"></datalist>
+      <button class="btn pri" id="btnManual">盤點</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2 id="recentTitle">最近盤點</h2>
+    <div class="list" id="recentList"></div>
+  </div>
+</section>
+
+<!-- ============ 清單 ============ -->
+<section class="view" id="v-list">
+  <div class="card">
+    <div class="seg" id="listSeg" style="margin-bottom:10px">
+      <button data-f="all" class="on">全部</button><button data-f="done">已盤點</button><button data-f="todo">未盤點</button><button data-f="extra">清冊外</button>
+    </div>
+    <div class="row">
+      <input type="search" id="q" class="grow" placeholder="搜尋編號、名稱、規格、保管人…">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <select id="fDept" class="grow"></select>
+      <select id="fCat" class="grow"></select>
+      <select id="fLbl" class="grow">
+        <option value="">全部標籤狀態</option><option value="unprinted">標籤未列印</option><option value="printed">已列印、未黏貼</option><option value="unaffixed">標籤未黏貼</option><option value="affixed">標籤已黏貼</option>
+      </select>
+    </div>
+    <div class="row small muted" style="margin-top:8px;justify-content:space-between">
+      <span id="listCount"></span>
+      <span class="row" style="gap:6px"><button class="btn sm" id="btnBulkAffix">為篩選結果確認黏貼</button><button class="btn sm" id="btnBulkDept">為篩選結果設定部門</button></span>
+    </div>
+  </div>
+  <div class="card" style="padding:4px 12px">
+    <div class="list" id="assetList"></div>
+    <div style="text-align:center;padding:10px" class="hide" id="moreWrap"><button class="btn sm" id="btnMore">顯示更多</button></div>
+  </div>
+</section>
+
+<!-- ============ 標籤 ============ -->
+<section class="view" id="v-labels">
+  <div class="card">
+    <h2>列印財產標籤</h2>
+    <div class="row">
+      <label class="f grow">標籤尺寸
+        <select id="lblSize">
+          <option value="50x30">標籤機 50 × 30 mm（每張一枚）</option>
+          <option value="60x40">標籤機 60 × 40 mm（每張一枚）</option>
+          <option value="40x25">標籤機 40 × 25 mm（每張一枚）</option>
+          <option value="a4-3x8">A4 貼紙 3 × 8（70 × 37 mm，24 格）</option>
+          <option value="a4-4x10">A4 貼紙 4 × 10（48.5 × 25.4 mm，40 格）</option>
+          <option value="a4-3x7">A4 貼紙 3 × 7（63.5 × 38.1 mm，21 格）</option>
+        </select>
+      </label>
+      <label class="f grow">條碼類型
+        <select id="lblType">
+          <option value="qr">QR Code（建議，手機最好掃）</option>
+          <option value="bc">一維條碼 Code 128</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label class="f grow">標籤抬頭（公司名稱，可留空）<input type="text" id="lblCompany"></label>
+    </div>
+    <div class="row small" style="gap:16px;margin-bottom:6px">
+      <label><input type="checkbox" id="lblSpec"> 顯示規格</label>
+      <label><input type="checkbox" id="lblGuides"> 列印裁切輔助線</label>
+    </div>
+    <h3>要列印哪些財產</h3>
+    <div class="row">
+      <select id="lblDept" class="grow"></select>
+      <select id="lblCat" class="grow"></select>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <select id="lblState" class="grow">
+        <option value="">全部（不論標籤狀態）</option>
+        <option value="unprinted">只印尚未列印過的</option>
+        <option value="unaffixed">只印尚未確認黏貼的（補印）</option>
+      </select>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="f grow" style="margin:0">編號區間－起<input type="text" id="lblFrom" list="idList" placeholder="例如 A202412001" autocapitalize="characters" autocomplete="off"></label>
+      <label class="f grow" style="margin:0">編號區間－迄<input type="text" id="lblTo" list="idList" placeholder="例如 A202412050" autocapitalize="characters" autocomplete="off"></label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="lblIds" class="grow" placeholder="指定編號（選填，逗號或空白分隔；也可寫區間，如 A202412001~A202412050）">
+    </div>
+    <p class="small muted" style="margin:4px 0 0">「指定編號」有填寫時，只印指定的編號，忽略上方部門、類別、狀態及區間條件；編號區間則會與部門、類別、狀態條件一起篩選。</p>
+    <div class="row" style="margin-top:8px">
+      <label class="f grow" style="margin:0">A4 貼紙從第幾格開始（用過一半的貼紙）<input type="text" id="lblSkip" value="1" inputmode="numeric"></label>
+    </div>
+    <p class="small muted" id="lblCount"></p>
+    <div class="row">
+      <button class="btn pri grow" id="btnPrint">列印標籤</button>
+    </div>
+    <p class="small muted">列印時請在印表機設定選擇「實際大小／100%」，並關閉頁首頁尾；標籤機請將紙張尺寸設為與上方相同。</p>
+  </div>
+  <div class="card" id="lblProgress">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <h2 style="margin:0">標籤列印及黏貼進度</h2>
+      <span class="row" style="gap:6px"><button class="btn sm" id="btnAffixMode">掃描確認黏貼</button><button class="btn sm" id="btnExportLabels">匯出標籤作業紀錄</button></span>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b id="lkTotal">0</b><span>應貼標籤</span></div>
+      <div class="kpi"><b id="lkPrinted">0</b><span>已列印</span></div>
+      <div class="kpi ok"><b id="lkAffixed">0</b><span>已黏貼</span></div>
+      <div class="kpi bad"><b id="lkTodo">0</b><span>未黏貼</span></div>
+    </div>
+    <table class="t" id="lblStatTable"></table>
+    <p class="small muted" style="margin:8px 0 0">點選部門可查看該部門未黏貼的明細。標籤紀錄與盤點紀錄分開保存，「開始新一期盤點」不會清除標籤紀錄。</p>
+    <div style="text-align:right;margin-top:6px"><button class="btn sm danger" id="btnResetLabels">重設標籤紀錄</button></div>
+  </div>
+  <div class="card">
+    <h2>預覽（前 12 張）</h2>
+    <div id="labelPreview"></div>
+  </div>
+</section>
+
+<!-- ============ 設定 ============ -->
+<section class="view" id="v-settings">
+  <div class="card">
+    <h2>匯入財產清冊</h2>
+    <div class="drop" id="drop">
+      <div style="font-weight:600">點這裡選擇 Excel 檔，或把檔案拖曳到這裡</div>
+      <div class="small muted">支援 .xlsx / .xls / .csv。會自動找出「資產編號／財產編號」「資產名稱」欄位，<br>如有「部門／保管單位」「保管人」「存放地點」欄位也會一併讀入。</div>
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
+    <p class="small muted">重新匯入清冊時，已盤點的紀錄會依財產編號保留。</p>
+  </div>
+  <div class="card">
+    <h2>部門資料</h2>
+    <p class="small muted" style="margin-top:-6px">若清冊沒有部門欄位：先下載「財產清單（含部門欄）」，在 Excel 填好「部門」欄後，再用上方匯入即可，盤點紀錄不會遺失。也可以在「清單」頁逐筆或批次設定。</p>
+    <button class="btn" id="btnExportMaster">下載財產清單（含部門欄）</button>
+  </div>
+  <div class="card">
+    <h2>匯出與備份</h2>
+    <div class="row">
+      <button class="btn pri grow" id="btnExport">匯出 Excel 盤點結果</button>
+    </div>
+    <h3>多人分頭盤點／換手機</h3>
+    <p class="small muted" style="margin-top:0">每支手機各自盤點後匯出「盤點紀錄備份」，再到主要手機或電腦「匯入合併」，即可彙總成一份結果。</p>
+    <div class="row">
+      <button class="btn grow" id="btnBackup">匯出盤點紀錄備份（.json）</button>
+      <button class="btn grow" id="btnMerge">匯入合併備份</button>
+    </div>
+    <input type="file" id="mergeFile" accept=".json,application/json" class="hide">
+  </div>
+  <div class="card">
+    <h2>盤點作業</h2>
+    <div class="row">
+      <button class="btn grow" id="btnEditAudit2">編輯盤點名稱／基準日</button>
+      <button class="btn danger grow" id="btnNewAudit">開始新一期盤點（清除盤點紀錄）</button>
+    </div>
+    <h3>危險操作</h3>
+    <button class="btn danger" id="btnWipe">清除全部資料</button>
+    <p class="small muted">所有資料只儲存在這支手機／這台電腦的瀏覽器中，不會上傳到任何伺服器。清除瀏覽器資料會一併刪除，請定期匯出備份。</p>
+    <p class="small muted" id="storageInfo"></p>
+  </div>
+</section>
+</main>
+
+<nav class="tabs" id="tabs">
+  <button data-go="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>總覽</button>
+  <button data-go="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 12h10"/></svg>掃描</button>
+  <button data-go="list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>清單</button>
+  <button data-go="labels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>標籤</button>
+  <button data-go="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</button>
+</nav>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<!-- 對話框 -->
+<dialog id="dlgImport">
+  <div class="dh">確認匯入</div>
+  <div class="db">
+    <div id="impModeBox" class="cats hide" style="margin-bottom:8px">
+      <label><input type="radio" name="impMode" id="impModeReplace"><span>以此檔<b>取代</b>財產清冊（作為盤點母體）</span></label>
+      <label><input type="radio" name="impMode" id="impModeUpdate"><span>只<b>更新部門／保管人</b>（依財產編號比對，清冊不變）</span></label>
+    </div>
+    <p id="impSummary"></p>
+    <div id="impAddBox" class="cats hide">
+      <label><input type="checkbox" id="impAdd"><span>將「在此檔、但不在目前清冊」的 <b id="impAddCount">0</b> 筆也加入盤點清冊</span></label>
+    </div>
+    <div id="impCatsBox">
+      <h3 style="margin-top:0">納入盤點的資產類別</h3>
+      <p class="small muted" style="margin-top:-4px">無形資產（電腦軟體、專利權、專門技術）及租賃改良通常無實體可貼標籤，預設不納入；仍可勾選。</p>
+      <div class="cats" id="impCats"></div>
+    </div>
+  </div>
+  <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="impOk">匯入</button></div>
+</dialog>
+
+<dialog id="dlgAsset">
+  <div class="dh" id="daTitle"></div>
+  <div class="db">
+    <div id="daInfo" class="small" style="margin-bottom:10px"></div>
+    <label class="f">部門<input type="text" id="daDept" list="deptList"></label>
+    <datalist id="deptList"></datalist>
+    <label class="f">保管人<input type="text" id="daKeeper"></label>
+    <label class="f">存放地點<input type="text" id="daLoc"></label>
+    <div class="small" id="daLabelInfo" style="margin-bottom:8px"></div>
+    <div id="daScanBox" class="hide">
+      <h3>盤點紀錄</h3>
+      <div id="daScanInfo" class="small"></div>
+      <label class="f" style="margin-top:8px">實物狀況
+        <select id="daStatus"><option>正常</option><option>損壞</option><option>待報廢</option><option>閒置</option><option>標籤遺失已補貼</option></select>
+      </label>
+      <label class="f">盤點備註<input type="text" id="daNote"></label>
+    </div>
+  </div>
+  <div class="df">
+    <button class="btn danger hide" id="daUnscan">取消盤點</button>
+    <button class="btn hide" id="daScanNow">標記為已盤點</button>
+    <button class="btn" id="daPrint">補印標籤</button>
+    <button class="btn" id="daAffix">確認已黏貼</button>
+    <span style="flex:1"></span>
+    <button class="btn" data-close>關閉</button>
+    <button class="btn pri" id="daSave">儲存</button>
+  </div>
+</dialog>
+
+<dialog id="dlgAudit">
+  <div class="dh">盤點資訊</div>
+  <div class="db">
+    <label class="f">盤點名稱<input type="text" id="auName"></label>
+    <label class="f">盤點基準日<input type="text" id="auDate" placeholder="例如 2026/10/15"></label>
+    <label class="f">公司名稱<input type="text" id="auCompany"></label>
+  </div>
+  <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="auOk">儲存</button></div>
+</dialog>
+
+<dialog id="dlgBulk">
+  <div class="dh">批次設定部門</div>
+  <div class="db">
+    <p id="bulkInfo" class="small"></p>
+    <label class="f">部門<input type="text" id="bulkDept" list="deptList"></label>
+  </div>
+  <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="bulkOk">套用</button></div>
+</dialog>
+
+<dialog id="dlgPrinted">
+  <div class="dh">列印確認</div>
+  <div class="db"><p id="prInfo" style="margin:0"></p><p class="small muted">確認後會記錄這些標籤的列印時間，方便追蹤哪些標籤還沒印、還沒貼。</p></div>
+  <div class="df"><button class="btn" id="prNo">未成功，不記錄</button><button class="btn pri" id="prYes">已列印，記錄</button></div>
+</dialog>
+
+<dialog id="dlgExtra">
+  <div class="dh">清冊外條碼</div>
+  <div class="db">
+    <p class="small muted" style="margin-top:0">掃描到但不在財產清冊內的條碼（可能是未入帳資產、已除帳但仍在使用，或非財產標籤）。</p>
+    <div id="exInfo" class="small"></div>
+    <label class="f" style="margin-top:8px">說明<input type="text" id="exNote" placeholder="例如：會議室投影機，無財產編號"></label>
+  </div>
+  <div class="df"><button class="btn danger" id="exDel">刪除</button><span style="flex:1"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="exSave">儲存</button></div>
+</dialog>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="vendor/JsBarcode.all.min.js"></script>
+<script src="vendor/html5-qrcode.min.js"></script>
+<script>
+'use strict';
+/* ======================= 資料與儲存 ======================= */
+const KEY = 'assetInventory.v1';
+const UNSET = '未指定部門';
+const NO_AUDIT_CATS = /電腦軟體|專利權|專門技術|商標|著作權|商譽|租賃改良|無形/;
+
+let S = load();
+function blank(){
+  return {
+    company:'雲象科技股份有限公司', source:'', importedAt:'',
+    assets:[],           // {id,name,spec,cat,dept,keeper,loc,note,skip}
+    audit:{name:'', date:'', startedAt:''},
+    scans:{},            // id -> {t,by,loc,status,note,method}
+    extras:[],           // {code,t,by,loc,note}
+    labels:{},           // id -> {printedAt,lastPrintedAt,printCount,affixedAt,affixedBy,affixMethod}  標籤列印及黏貼紀錄
+    prefs:{lblSize:'50x30', lblType:'qr', lblSpec:false, lblGuides:false, beep:true, vibe:true, by:'', statG:'dept', scanMode:'audit'}
+  };
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const o = JSON.parse(raw); const b = blank(); return {...b, ...o, prefs:{...b.prefs, ...(o.prefs||{})}, audit:{...b.audit, ...(o.audit||{})}}; }
+  }catch(e){ console.warn(e); }
+  return blank();
+}
+let saveTimer = null;
+function save(now){
+  clearTimeout(saveTimer);
+  const doit = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ toast('儲存失敗：' + e.message); } };
+  if(now) doit(); else saveTimer = setTimeout(doit, 150);
+}
+window.addEventListener('pagehide', () => save(true));
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+if(!S.labels) S.labels = {};
+let byId = new Map();
+function reindex(){ byId = new Map(S.assets.map(a => [a.id, a])); }
+reindex();
+const inScope = () => S.assets.filter(a => !a.skip);
+const normId = s => String(s == null ? '' : s).trim().toUpperCase();
+
+/* ======================= 小工具 ======================= */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+function fmtTime(iso){ if(!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function today(){ const d = new Date(); return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`; }
+function stamp(){ const d = new Date(); return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`; }
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); }
+$$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+const deptOf = a => a.dept || UNSET;
+const catOf = a => a.cat || '未分類';
+
+/* ======================= 分頁切換 ======================= */
+let curView = 'home';
+function go(v){
+  curView = v;
+  $$('section.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.go === v));
+  if(v !== 'scan') stopCam();
+  render();
+  window.scrollTo(0,0);
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if(b) go(b.dataset.go); });
+
+/* ======================= 標籤紀錄 ======================= */
+const isPrinted = id => { const l = S.labels[id]; return !!(l && (l.printedAt || l.affixedAt)); };
+const isAffixed = id => { const l = S.labels[id]; return !!(l && l.affixedAt); };
+const labelText = id => isAffixed(id) ? '標籤已貼' : isPrinted(id) ? '標籤已印未貼' : '標籤未印';
+function lblStateOk(a, st){
+  if(st === 'unprinted') return !isPrinted(a.id);
+  if(st === 'printed') return isPrinted(a.id) && !isAffixed(a.id);
+  if(st === 'unaffixed') return !isAffixed(a.id);
+  if(st === 'affixed') return isAffixed(a.id);
+  return true;
+}
+function labelStats(){
+  const a = inScope();
+  const printed = a.filter(x => isPrinted(x.id)).length, affixed = a.filter(x => isAffixed(x.id)).length;
+  return {total:a.length, printed, affixed, todo:a.length - affixed};
+}
+function groupLabelStats(){
+  const m = new Map();
+  for(const a of inScope()){
+    const g = deptOf(a), r = m.get(g) || {g, total:0, printed:0, affixed:0};
+    r.total++; if(isPrinted(a.id)) r.printed++; if(isAffixed(a.id)) r.affixed++;
+    m.set(g, r);
+  }
+  return [...m.values()].sort((x,y) => (x.g === UNSET) - (y.g === UNSET) || x.g.localeCompare(y.g, 'zh-Hant'));
+}
+function markPrinted(ids){
+  const now = new Date().toISOString();
+  for(const id of ids){
+    const l = S.labels[id] || (S.labels[id] = {printCount:0});
+    if(!l.printedAt) l.printedAt = now;
+    l.lastPrintedAt = now; l.printCount = (l.printCount || 0) + 1;
+  }
+  save(true);
+}
+function markAffixed(id, method){
+  const l = S.labels[id] || (S.labels[id] = {printCount:0});
+  l.affixedAt = new Date().toISOString(); l.affixedBy = S.prefs.by; l.affixMethod = method;
+}
+
+/* ======================= 統計 ======================= */
+function stats(){
+  const a = inScope();
+  const done = a.filter(x => S.scans[x.id]).length;
+  return {total:a.length, done, todo:a.length - done, extra:S.extras.length};
+}
+function groupStats(key){
+  const m = new Map();
+  for(const a of inScope()){
+    const g = key === 'dept' ? deptOf(a) : catOf(a);
+    const r = m.get(g) || {g, total:0, done:0};
+    r.total++; if(S.scans[a.id]) r.done++;
+    m.set(g, r);
+  }
+  return [...m.values()].sort((x,y) => (x.g === UNSET) - (y.g === UNSET) || x.g.localeCompare(y.g, 'zh-Hant'));
+}
+
+/* ======================= 畫面繪製 ======================= */
+function render(){
+  const st = stats();
+  $('#hdrTitle').textContent = S.audit.name || '財產盤點';
+  $('#hdrSub').textContent = S.assets.length ? `${st.done}/${st.total}` : '';
+  if(curView === 'home') renderHome(st);
+  if(curView === 'scan') renderScan();
+  if(curView === 'list') renderList();
+  if(curView === 'labels') renderLabels();
+  if(curView === 'settings') renderSettings();
+}
+
+function renderHome(st){
+  const empty = !S.assets.length;
+  $('#homeEmpty').classList.toggle('hide', !empty);
+  $('#homeBody').classList.toggle('hide', empty);
+  if(empty) return;
+  $('#auditName').textContent = S.audit.name || '（未命名盤點）';
+  $('#auditMeta').textContent = [S.audit.date && ('基準日 ' + S.audit.date), S.source && ('清冊：' + S.source), S.deptSource && S.deptSource !== S.source && ('部門資料：' + S.deptSource)].filter(Boolean).join('　');
+  const pct = st.total ? Math.round(st.done / st.total * 1000) / 10 : 0;
+  $('#totalBar').style.width = pct + '%';
+  $('#totalPct').textContent = `盤點進度 ${pct}%`;
+  $('#kTotal').textContent = st.total; $('#kDone').textContent = st.done; $('#kTodo').textContent = st.todo; $('#kExtra').textContent = st.extra;
+  const g = S.prefs.statG;
+  $$('#statSeg button').forEach(b => b.classList.toggle('on', b.dataset.g === g));
+  const rows = groupStats(g);
+  let tot = {total:0, done:0};
+  let h = `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th><th style="width:28%">進度</th></tr></thead><tbody>`;
+  for(const r of rows){
+    tot.total += r.total; tot.done += r.done;
+    const p = r.total ? r.done / r.total * 100 : 0;
+    h += `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n" style="color:var(--ok)">${r.done}</td><td class="n" style="color:${r.total - r.done ? 'var(--bad)' : 'inherit'}">${r.total - r.done}</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`;
+  }
+  h += `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${tot.done}</th><th class="n">${tot.total - tot.done}</th><th></th></tr></tfoot>`;
+  $('#statTable').innerHTML = h;
+}
+$('#statSeg').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; S.prefs.statG = b.dataset.g; save(); render(); });
+$('#statTable').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-grp]'); if(!tr) return;
+  listState.filter = 'all'; listState.q = '';
+  if(S.prefs.statG === 'dept'){ listState.dept = tr.dataset.grp; listState.cat = ''; } else { listState.cat = tr.dataset.grp; listState.dept = ''; }
+  go('list');
+});
+
+/* ---------- 清單 ---------- */
+const listState = {filter:'all', q:'', dept:'', cat:'', lbl:'', limit:200};
+function fillSelect(sel, values, allLabel, cur){
+  sel.innerHTML = `<option value="">${allLabel}</option>` + values.map(v => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
+}
+function depts(){ return [...new Set(inScope().map(deptOf))].sort((a,b) => (a === UNSET) - (b === UNSET) || a.localeCompare(b,'zh-Hant')); }
+function cats(){ return [...new Set(inScope().map(catOf))].sort((a,b) => a.localeCompare(b,'zh-Hant')); }
+function filtered(){
+  const q = listState.q.trim().toLowerCase();
+  return inScope().filter(a => {
+    if(listState.filter === 'done' && !S.scans[a.id]) return false;
+    if(listState.filter === 'todo' && S.scans[a.id]) return false;
+    if(listState.dept && deptOf(a) !== listState.dept) return false;
+    if(listState.cat && catOf(a) !== listState.cat) return false;
+    if(listState.lbl && !lblStateOk(a, listState.lbl)) return false;
+    if(q && ![a.id, a.name, a.spec, a.keeper, a.loc, a.dept].some(v => v && String(v).toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+function renderList(){
+  $$('#listSeg button').forEach(b => b.classList.toggle('on', b.dataset.f === listState.filter));
+  $('#q').value = listState.q;
+  fillSelect($('#fDept'), depts(), '全部部門', listState.dept);
+  fillSelect($('#fCat'), cats(), '全部資產類別', listState.cat);
+  $('#fLbl').value = listState.lbl;
+  const extraMode = listState.filter === 'extra';
+  $('#fDept').disabled = $('#fCat').disabled = $('#fLbl').disabled = $('#btnBulkDept').disabled = $('#btnBulkAffix').disabled = extraMode;
+  const box = $('#assetList');
+  if(extraMode){
+    const q = listState.q.trim().toLowerCase();
+    const xs = S.extras.map((x,i) => ({...x, i})).filter(x => !q || (x.code + ' ' + (x.note||'')).toLowerCase().includes(q)).reverse();
+    $('#listCount').textContent = `共 ${xs.length} 筆清冊外條碼`;
+    box.innerHTML = xs.length ? xs.map(x => `<div class="it" data-ex="${x.i}"><span class="dot ex"></span><div class="m"><div class="id">${esc(x.code)}</div><div class="nm">${esc(fmtTime(x.t))}　${esc(x.by||'')}　${esc(x.loc||'')}　${esc(x.note||'')}</div></div><span class="pill warn">清冊外</span></div>`).join('') : '<div class="empty">沒有清冊外條碼</div>';
+    $('#moreWrap').classList.add('hide');
+    return;
+  }
+  const rows = filtered();
+  const done = rows.filter(a => S.scans[a.id]).length;
+  $('#listCount').textContent = `共 ${rows.length} 筆（已盤 ${done}、未盤 ${rows.length - done}）`;
+  const show = rows.slice(0, listState.limit);
+  box.innerHTML = show.length ? show.map(a => {
+    const sc = S.scans[a.id];
+    const pill = sc ? `<span class="pill ${sc.status && sc.status !== '正常' ? 'warn' : 'ok'}">${esc(sc.status && sc.status !== '正常' ? sc.status : '已盤')}</span>` : '<span class="pill bad">未盤</span>';
+    return `<div class="it" data-id="${esc(a.id)}"><span class="dot ${sc ? 'ok' : ''}"></span><div class="m"><div class="id">${esc(a.id)}</div><div class="nm">${esc(a.name)}${a.spec ? '｜' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `｜數量 ${esc(a.qty)}` : ''}</div><div class="nm">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}${sc ? '・' + esc(fmtTime(sc.t)) : ''}・<span style="color:${isAffixed(a.id) ? 'var(--ok)' : 'var(--warn)'}">${labelText(a.id)}</span></div></div>${pill}</div>`;
+  }).join('') : '<div class="empty">沒有符合條件的財產</div>';
+  $('#moreWrap').classList.toggle('hide', rows.length <= listState.limit);
+}
+$('#listSeg').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; listState.filter = b.dataset.f; listState.limit = 200; renderList(); });
+$('#q').addEventListener('input', e => { listState.q = e.target.value; listState.limit = 200; renderList(); });
+$('#fDept').addEventListener('change', e => { listState.dept = e.target.value; renderList(); });
+$('#fCat').addEventListener('change', e => { listState.cat = e.target.value; renderList(); });
+$('#fLbl').addEventListener('change', e => { listState.lbl = e.target.value; renderList(); });
+$('#btnBulkAffix').addEventListener('click', () => {
+  if(!requireAuditor()) return;
+  const rows = filtered().filter(a => !isAffixed(a.id));
+  if(!rows.length) return toast('目前篩選沒有未黏貼的財產');
+  if(!confirm(`將目前篩選中 ${rows.length} 筆「未黏貼」的財產標記為已黏貼（確認人：${S.prefs.by}）。\n建議只在已逐一核對實物後使用，確定？`)) return;
+  rows.forEach(a => markAffixed(a.id, 'bulk'));
+  save(true); render(); toast(`已確認 ${rows.length} 筆黏貼`);
+});
+$('#btnMore').addEventListener('click', () => { listState.limit += 300; renderList(); });
+$('#assetList').addEventListener('click', e => {
+  const it = e.target.closest('.it'); if(!it) return;
+  if(it.dataset.id) openAsset(it.dataset.id); else openExtra(+it.dataset.ex);
+});
+
+/* ---------- 財產明細對話框 ---------- */
+let daId = null;
+function openAsset(id){
+  const a = byId.get(id); if(!a) return;
+  daId = id;
+  $('#daTitle').textContent = a.id;
+  $('#daInfo').innerHTML = `<b>${esc(a.name)}</b>${a.spec ? '<br>' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `<br>數量：${esc(a.qty)}（一個財產編號含多件）` : ''}<br><span class="muted">${esc(catOf(a))}${a.note ? '<br>備註：' + esc(a.note) : ''}</span>`;
+  $('#daDept').value = a.dept || ''; $('#daKeeper').value = a.keeper || ''; $('#daLoc').value = a.loc || '';
+  $('#deptList').innerHTML = depts().filter(d => d !== UNSET).map(d => `<option value="${esc(d)}">`).join('');
+  const L = S.labels[id] || {};
+  $('#daLabelInfo').innerHTML = `標籤：<b style="color:${L.affixedAt ? 'var(--ok)' : 'var(--warn)'}">${labelText(id)}</b>` +
+    (L.printedAt ? `<br>首次列印 ${esc(fmtTime(L.printedAt))}${L.printCount > 1 ? `（共印 ${L.printCount} 次，最近 ${esc(fmtTime(L.lastPrintedAt))}）` : ''}` : '') +
+    (L.affixedAt ? `<br>黏貼確認 ${esc(fmtTime(L.affixedAt))}・${esc(L.affixedBy || '—')}・${({scan:'掃描', manual:'手動', bulk:'批次'})[L.affixMethod] || ''}` : '');
+  $('#daAffix').textContent = L.affixedAt ? '取消黏貼確認' : '確認已黏貼';
+  const sc = S.scans[id];
+  $('#daScanBox').classList.toggle('hide', !sc);
+  $('#daUnscan').classList.toggle('hide', !sc);
+  $('#daScanNow').classList.toggle('hide', !!sc);
+  if(sc){
+    $('#daScanInfo').innerHTML = `盤點時間：${esc(fmtTime(sc.t))}<br>盤點人：${esc(sc.by || '—')}　位置：${esc(sc.loc || '—')}　方式：${sc.method === 'manual' ? '手動' : '掃描'}`;
+    $('#daStatus').value = sc.status || '正常'; $('#daNote').value = sc.note || '';
+  }
+  $('#dlgAsset').showModal();
+}
+$('#daSave').addEventListener('click', () => {
+  const a = byId.get(daId); if(!a) return;
+  a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim();
+  const sc = S.scans[daId];
+  if(sc){ sc.status = $('#daStatus').value; sc.note = $('#daNote').value.trim(); }
+  save(); $('#dlgAsset').close(); render(); toast('已儲存');
+});
+$('#daUnscan').addEventListener('click', () => {
+  if(!confirm(`確定取消 ${daId} 的盤點紀錄？`)) return;
+  delete S.scans[daId]; save(); $('#dlgAsset').close(); render(); toast('已取消盤點');
+});
+$('#daScanNow').addEventListener('click', () => { if(!requireAuditor()) return; record(daId, 'manual'); $('#dlgAsset').close(); render(); });
+$('#daAffix').addEventListener('click', () => {
+  const L = S.labels[daId];
+  if(L && L.affixedAt){
+    if(!confirm(`確定取消 ${daId} 的黏貼確認？`)) return;
+    delete L.affixedAt; delete L.affixedBy; delete L.affixMethod;
+  } else {
+    if(!requireAuditor()) return;
+    markAffixed(daId, 'manual');
+  }
+  save(true); $('#dlgAsset').close(); render(); toast('已更新標籤紀錄');
+});
+$('#daPrint').addEventListener('click', () => { const id = daId; $('#dlgAsset').close(); $('#lblIds').value = id; go('labels'); renderLabels(false); });
+
+let exIdx = -1;
+function openExtra(i){
+  const x = S.extras[i]; if(!x) return; exIdx = i;
+  $('#exInfo').innerHTML = `條碼內容：<b>${esc(x.code)}</b><br>掃描時間：${esc(fmtTime(x.t))}<br>盤點人：${esc(x.by||'—')}　位置：${esc(x.loc||'—')}`;
+  $('#exNote').value = x.note || '';
+  $('#dlgExtra').showModal();
+}
+$('#exSave').addEventListener('click', () => { S.extras[exIdx].note = $('#exNote').value.trim(); save(); $('#dlgExtra').close(); render(); });
+$('#exDel').addEventListener('click', () => { if(!confirm('確定刪除這筆清冊外條碼？')) return; S.extras.splice(exIdx,1); save(); $('#dlgExtra').close(); render(); });
+
+$('#btnBulkDept').addEventListener('click', () => {
+  const n = filtered().length;
+  if(!n) return toast('目前篩選沒有資料');
+  $('#bulkInfo').textContent = `將把目前篩選出的 ${n} 筆財產設定為以下部門：`;
+  $('#bulkDept').value = '';
+  $('#deptList').innerHTML = depts().filter(d => d !== UNSET).map(d => `<option value="${esc(d)}">`).join('');
+  $('#dlgBulk').showModal();
+});
+$('#bulkOk').addEventListener('click', () => {
+  const d = $('#bulkDept').value.trim();
+  const rows = filtered(); rows.forEach(a => a.dept = d);
+  save(); $('#dlgBulk').close(); listState.dept = d || (listState.dept ? UNSET : ''); render(); toast(`已更新 ${rows.length} 筆`);
+});
+
+/* ---------- 盤點資訊 ---------- */
+function openAudit(){
+  $('#auName').value = S.audit.name || ''; $('#auDate').value = S.audit.date || ''; $('#auCompany').value = S.company || '';
+  $('#dlgAudit').showModal();
+}
+$('#btnEditAudit').addEventListener('click', openAudit);
+$('#btnEditAudit2').addEventListener('click', openAudit);
+$('#auOk').addEventListener('click', () => {
+  S.audit.name = $('#auName').value.trim(); S.audit.date = $('#auDate').value.trim(); S.company = $('#auCompany').value.trim();
+  save(); $('#dlgAudit').close(); render();
+});
+
+/* ======================= 盤點紀錄 ======================= */
+const recentIds = [];
+// 盤點人為必填：未填寫時不允許任何盤點動作，並引導到「掃描」頁輸入
+function requireAuditor(){
+  if(S.prefs.by) return true;
+  if($('#dlgAsset').open) $('#dlgAsset').close();
+  if(curView !== 'scan') go('scan');
+  const el = $('#scanBy');
+  el.classList.add('need'); el.focus();
+  toast('請先填寫盤點人姓名');
+  return false;
+}
+function updateAuditorUi(){
+  const ok = !!S.prefs.by;
+  $('#byHint').classList.toggle('hide', ok);
+  $('#scanBy').classList.toggle('need', !ok && $('#scanBy').classList.contains('need'));
+  $('#btnCam').disabled = $('#btnManual').disabled = $('#manualId').disabled = !ok;
+}
+function affix(code, method){
+  const id = normId(code), a = byId.get(id);
+  if(!a){ affixFeedback('bad', null, code); return 'bad'; }
+  if(isAffixed(id)){ affixFeedback('dup', a); return 'dup'; }
+  markAffixed(id, method); save();
+  affixFeedback('ok', a); return 'ok';
+}
+function affixFeedback(kind, a, code){
+  beep(kind); vibe(kind);
+  const L = a ? S.labels[a.id] : null;
+  $('#scanResult').innerHTML = kind === 'ok'
+    ? `<div class="result ok"><div class="small">✔ 已確認標籤黏貼${L && !L.printedAt ? '（此標籤沒有列印紀錄，已一併視為已列印）' : ''}</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div></div>`
+    : kind === 'dup'
+    ? `<div class="result dup"><div class="small">⚠ 這張標籤已確認過黏貼</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">於 ${esc(fmtTime(L.affixedAt))} 由 ${esc(L.affixedBy || '—')} 確認</div></div>`
+    : `<div class="result bad"><div class="small">✖ 不在財產清冊內，請確認標籤是否正確</div><div class="big" style="word-break:break-all">${esc(code)}</div></div>`;
+  renderScanSide();
+}
+function record(rawCode, method){
+  const code = String(rawCode).trim();
+  const id = normId(code);
+  if(!requireAuditor()) return 'noby';
+  if(S.prefs.scanMode === 'affix') return affix(code, method);
+  const by = S.prefs.by, loc = $('#scanLoc').value.trim();
+  const a = byId.get(id);
+  if(a){
+    if(S.scans[id]){
+      feedback('dup', a, S.scans[id]);
+      return 'dup';
+    }
+    S.scans[id] = {t:new Date().toISOString(), by, loc, status:'正常', note:'', method};
+    if(loc && !a.loc) a.loc = loc;
+    save();
+    recentIds.unshift(id);
+    feedback(a.skip ? 'skip' : 'ok', a, S.scans[id]);
+    return 'ok';
+  }
+  // 不在清冊內：記錄為清冊外條碼（同一條碼只記一次）
+  if(!S.extras.some(x => x.code === code)){
+    S.extras.push({code, t:new Date().toISOString(), by, loc, note:''});
+    save();
+  }
+  feedback('bad', null, null, code);
+  return 'bad';
+}
+
+let audioCtx;
+function beep(kind){
+  if(!$('#optBeep').checked) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const tones = kind === 'ok' ? [[1250,.09]] : kind === 'dup' ? [[700,.08],[700,.08]] : [[300,.25]];
+    let t = audioCtx.currentTime;
+    for(const [f,d] of tones){
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = f; o.type = 'square'; g.gain.value = .06;
+      o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + d); t += d + .06;
+    }
+  }catch(e){}
+}
+function vibe(kind){
+  if(!$('#optVibe').checked || !navigator.vibrate) return;
+  navigator.vibrate(kind === 'ok' ? 80 : kind === 'dup' ? [60,60,60] : [250]);
+}
+function feedback(kind, a, sc, code){
+  const box = $('#scanResult');
+  const k = kind === 'skip' ? 'ok' : kind;
+  beep(k); vibe(k);
+  if(kind === 'ok' || kind === 'skip'){
+    box.innerHTML = `<div class="result ok"><div class="small">✔ 盤點成功${kind === 'skip' ? '（此類別未納入盤點範圍）' : ''}</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" data-edit="${esc(a.id)}">記錄狀況／備註</button></div></div>`;
+  } else if(kind === 'dup'){
+    box.innerHTML = `<div class="result dup"><div class="small">⚠ 已盤點過</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">於 ${esc(fmtTime(sc.t))} 由 ${esc(sc.by || '—')} 盤點</div></div>`;
+  } else {
+    box.innerHTML = `<div class="result bad"><div class="small">✖ 不在財產清冊內，已記錄為「清冊外條碼」</div><div class="big" style="word-break:break-all">${esc(code)}</div></div>`;
+  }
+  renderScanSide();
+  $('#hdrSub').textContent = `${stats().done}/${stats().total}`;
+}
+$('#scanResult').addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if(b) openAsset(b.dataset.edit); });
+
+function renderScan(){
+  const affixMode = S.prefs.scanMode === 'affix';
+  $$('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === S.prefs.scanMode));
+  $('#modeBanner').classList.toggle('hide', !affixMode);
+  $('#manualTitle').textContent = affixMode ? '手動確認標籤黏貼' : '手動輸入財產編號';
+  $('#btnManual').textContent = affixMode ? '確認黏貼' : '盤點';
+  $('#recentTitle').textContent = affixMode ? '最近黏貼確認' : '最近盤點';
+  $('#scanResult').innerHTML = '';
+  $('#scanBy').value = S.prefs.by || '';
+  updateAuditorUi();
+  $('#optBeep').checked = S.prefs.beep; $('#optVibe').checked = S.prefs.vibe;
+  $('#idList').innerHTML = S.assets.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+  renderScanSide();
+}
+function renderScanSide(){
+  if(S.prefs.scanMode === 'affix'){
+    const ls = labelStats();
+    $('#sessionCount').textContent = `已貼 ${ls.affixed} / ${ls.total}`;
+    const latest = Object.entries(S.labels).filter(([,l]) => l.affixedAt).sort((x,y) => y[1].affixedAt.localeCompare(x[1].affixedAt)).slice(0, 8);
+    $('#recentList').innerHTML = latest.length ? latest.map(([id, l]) => {
+      const a = byId.get(id) || {name:''};
+      return `<div class="it" data-id="${esc(id)}"><span class="dot ok"></span><div class="m"><div class="id">${esc(id)}</div><div class="nm">${esc(a.name)}・${esc(fmtTime(l.affixedAt))}・${esc(l.affixedBy || '')}</div></div></div>`;
+    }).join('') : '<div class="empty">尚無黏貼確認紀錄</div>';
+    return;
+  }
+  const st = stats();
+  $('#sessionCount').textContent = `已盤 ${st.done} / ${st.total}`;
+  const latest = Object.entries(S.scans).sort((x,y) => y[1].t.localeCompare(x[1].t)).slice(0, 8);
+  $('#recentList').innerHTML = latest.length ? latest.map(([id, sc]) => {
+    const a = byId.get(id) || {name:''};
+    return `<div class="it" data-id="${esc(id)}"><span class="dot ok"></span><div class="m"><div class="id">${esc(id)}</div><div class="nm">${esc(a.name)}・${esc(fmtTime(sc.t))}</div></div></div>`;
+  }).join('') : '<div class="empty">尚無盤點紀錄</div>';
+}
+$('#modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b || b.dataset.m === S.prefs.scanMode) return;
+  S.prefs.scanMode = b.dataset.m; save(); renderScan();
+  toast(b.dataset.m === 'affix' ? '已切換為「標籤黏貼確認」模式' : '已切換為「財產盤點」模式');
+});
+$('#recentList').addEventListener('click', e => { const it = e.target.closest('.it'); if(it) openAsset(it.dataset.id); });
+$('#scanBy').addEventListener('input', e => {
+  S.prefs.by = e.target.value.trim(); save();
+  if(!S.prefs.by && camOn) stopCam();   // 盤點中清空姓名就停止掃描
+  updateAuditorUi();
+});
+$('#optBeep').addEventListener('change', e => { S.prefs.beep = e.target.checked; save(); });
+$('#optVibe').addEventListener('change', e => { S.prefs.vibe = e.target.checked; save(); });
+function manual(){
+  if(!requireAuditor()) return;
+  const v = $('#manualId').value.trim(); if(!v) return;
+  if(S.prefs.scanMode !== 'affix' && !byId.has(normId(v)) && !confirm(`「${v}」不在財產清冊內，要記錄為清冊外條碼嗎？`)) return;
+  record(v, 'manual'); $('#manualId').value = '';
+}
+$('#btnManual').addEventListener('click', manual);
+$('#manualId').addEventListener('keydown', e => { if(e.key === 'Enter') manual(); });
+
+/* ---------- 相機掃描 ---------- */
+let qr = null, camOn = false, lastCode = '', lastAt = 0;
+async function startCam(){
+  if(!requireAuditor()) return;
+  if(!S.assets.length) return toast('請先匯入財產清冊');
+  if(!window.isSecureContext) return alert('相機需要在 HTTPS 網址下才能使用（或在本機 localhost 測試）。');
+  try{
+    if(!qr){
+      const F = Html5QrcodeSupportedFormats;
+      qr = new Html5Qrcode('reader', {
+        formatsToSupport:[F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.DATA_MATRIX],
+        experimentalFeatures:{useBarCodeDetectorIfSupported:true}, verbose:false
+      });
+    }
+    const sel = $('#camSel');
+    const camId = sel.value;
+    await qr.start(camId ? {deviceId:{exact:camId}} : {facingMode:'environment'},
+      {fps:12, qrbox:(w,h) => { const s = Math.floor(Math.min(w,h) * .72); return {width:s, height:Math.floor(s * .75)}; }, aspectRatio:1.333},
+      onDecode, () => {});
+    camOn = true; $('#btnCam').textContent = '關閉相機';
+    // 列出可用鏡頭，方便手機有多顆鏡頭時切換
+    Html5Qrcode.getCameras().then(cs => {
+      if(cs && cs.length > 1){
+        sel.innerHTML = '<option value="">自動（後鏡頭）</option>' + cs.map(c => `<option value="${esc(c.id)}"${c.id === camId ? ' selected' : ''}>${esc(c.label || c.id)}</option>`).join('');
+        sel.classList.remove('hide');
+      }
+    }).catch(()=>{});
+  }catch(e){
+    camOn = false; $('#btnCam').textContent = '開啟相機掃描';
+    alert('無法開啟相機：' + (e && e.message || e) + '\n請確認已允許瀏覽器使用相機。');
+  }
+}
+async function stopCam(){
+  if(qr && camOn){ try{ await qr.stop(); }catch(e){} }
+  camOn = false; $('#btnCam').textContent = '開啟相機掃描';
+}
+function onDecode(text){
+  const now = Date.now();
+  if(text === lastCode && now - lastAt < 2500) return;   // 同一張標籤停留在鏡頭前不重複計
+  lastCode = text; lastAt = now;
+  record(text, 'scan');
+}
+$('#btnCam').addEventListener('click', () => camOn ? stopCam() : startCam());
+$('#camSel').addEventListener('change', async () => { if(camOn){ await stopCam(); startCam(); } });
+document.addEventListener('visibilitychange', () => { if(document.hidden) stopCam(); });
+
+/* ======================= 匯入 Excel ======================= */
+// 每個欄位依序比對，越前面優先（例如「部門名稱」優先於「部門代號」）
+const H = {
+  id:[/^(資產|財產)(編號|代號)$/, /^編號$/],
+  name:[/^(資產|財產)?名稱$/, /^品名$/],
+  spec:[/^(資產|財產)?規格$/, /規格|型號/],
+  catName:[/^類別名稱$/],
+  cat:[/^(資產|財產)?類別$/],
+  dept:[/^(保管|使用)?部門(名稱)?$/, /^(保管|使用)單位$/, /^部門(?!代號)/],
+  keeper:[/^(保管人|使用人)(名稱|姓名)?$/],
+  keeperId:[/^(保管人|使用人)(代號|工號|編號)$/],
+  loc:[/存放|地點|位置/],
+  qty:[/^數量$/],
+  note:[/^備註$/]
+};
+const clean = v => /^\*+$/.test(v) ? '' : v;   // 報表中以 ***** 表示無資料
+function parseWorkbook(wb){
+  const out = new Map(); let dupCount = 0, hasDeptCol = false, hasKeeperCol = false;
+  for(const name of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:null, raw:false, blankrows:false});
+    let col = null, cat = '';
+    for(const r of rows){
+      const cells = r.map(v => v == null ? '' : String(v).trim());
+      const catCell = cells.find(c => /^(資產|財產)類別\s*[:：]/.test(c));
+      if(catCell){ cat = catCell.replace(/^(資產|財產)類別\s*[:：]\s*/, '').replace(/\s+/g, ' '); continue; }
+      const idIdx = cells.findIndex(c => H.id.some(re => re.test(c)));
+      if(idIdx >= 0 && cells.some(c => H.name.some(re => re.test(c)))){
+        col = {};
+        for(const k of Object.keys(H)){
+          for(const re of H[k]){ const i = cells.findIndex(c => re.test(c)); if(i >= 0){ col[k] = i; break; } }
+        }
+        col.id = idIdx;
+        if(col.dept != null) hasDeptCol = true;
+        if(col.keeper != null) hasKeeperCol = true;
+        continue;
+      }
+      if(!col) continue;
+      const g = k => col[k] != null ? clean(cells[col[k]] || '') : '';
+      const id = normId(g('id'));
+      const nm = g('name');
+      if(!id || !nm) continue;
+      // 類別：「6253」+「管-雜項購置」組成與財產目錄相同的「6253 管-雜項購置」
+      let c = g('cat');
+      if(g('catName')) c = c ? `${c} ${g('catName')}` : g('catName');
+      const a = {id, name:nm, spec:g('spec'), cat:c || cat, dept:g('dept'), keeper:g('keeper'), keeperId:g('keeperId'),
+        loc:g('loc'), qty:g('qty'), note:g('note')};
+      if(out.has(id)) dupCount++;
+      out.set(id, a);
+    }
+  }
+  return {assets:[...out.values()], dupCount, hasDeptCol, hasKeeperCol};
+}
+let pending = null;
+async function handleFile(f){
+  if(!f) return;
+  try{
+    const buf = await f.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:false});
+    const p = parseWorkbook(wb);
+    if(!p.assets.length) return alert('找不到財產資料。請確認檔案中有「資產編號（或財產編號）」與「資產名稱」欄位的標題列。');
+    pending = {...p, name:f.name};
+    // 已有清冊且新檔有部門欄 → 可選擇「取代清冊」（預設）或「只更新部門／保管人」
+    const canUpdate = S.assets.length > 0 && (p.hasDeptCol || p.hasKeeperCol);
+    $('#impModeBox').classList.toggle('hide', !canUpdate);
+    $('#impModeReplace').checked = true; $('#impModeUpdate').checked = false;
+    $('#impAdd').checked = false;
+    renderImportDialog();
+    $('#dlgImport').showModal();
+  }catch(e){ alert('讀取檔案失敗：' + e.message); }
+}
+function renderImportDialog(){
+  const p = pending, upd = $('#impModeUpdate').checked;
+  const head = `檔案「${esc(p.name)}」共讀到 <b>${p.assets.length}</b> 筆財產${p.dupCount ? `（另有 ${p.dupCount} 筆重複編號已合併）` : ''}。`;
+  $('#impCatsBox').classList.toggle('hide', upd);
+  $('#impAddBox').classList.toggle('hide', !upd);
+  if(upd){
+    const ids = new Set(p.assets.map(a => a.id));
+    const matched = S.assets.filter(a => ids.has(a.id)).length;
+    const onlyFile = p.assets.filter(a => !byId.has(a.id));
+    const noData = S.assets.length - matched;
+    $('#impSummary').innerHTML = head + `<br>依財產編號與目前清冊（${S.assets.length} 筆）比對：<br>` +
+      `・<b>${matched}</b> 筆比對成功，將更新部門${p.hasKeeperCol ? '與保管人' : ''}<br>` +
+      `・<b style="color:var(--warn)">${noData}</b> 筆在目前清冊、但此檔沒有（維持原部門資料）<br>` +
+      `・<b style="color:var(--warn)">${onlyFile.length}</b> 筆在此檔、但不在目前清冊` +
+      `<br><span class="small muted">兩邊的差異明細會放在匯出 Excel 的「清冊差異」工作表。</span>`;
+    $('#impAddCount').textContent = onlyFile.length;
+  } else {
+    const keep = p.assets.filter(a => S.scans[a.id]).length;
+    $('#impSummary').innerHTML = head + '<br>' +
+      (p.hasDeptCol ? '已讀到部門欄位。' : '<span style="color:var(--warn)">檔案中沒有部門欄位</span>，匯入後可在「清單」頁設定，或下載含部門欄的清單填寫後再匯入。') +
+      (S.assets.length ? `<br>將取代目前的 ${S.assets.length} 筆清冊（${esc(S.source)}）${keep ? `，保留其中 ${keep} 筆既有盤點紀錄` : ''}。` +
+        `<br>・新清冊有、原清冊沒有：<b style="color:var(--warn)">${p.assets.filter(a => !byId.has(a.id)).length}</b> 筆` +
+        `<br>・原清冊有、新清冊沒有：<b style="color:var(--warn)">${S.assets.filter(a => !p.assets.some(b => b.id === a.id)).length}</b> 筆` +
+        `<br><span class="small muted">差異明細會放在匯出 Excel 的「清冊差異」工作表。</span>` : '');
+    const catCount = new Map();
+    p.assets.forEach(a => catCount.set(catOf(a), (catCount.get(catOf(a)) || 0) + 1));
+    const prevSkip = new Map(S.assets.map(a => [catOf(a), a.skip]));
+    $('#impCats').innerHTML = [...catCount.entries()].sort((x,y) => x[0].localeCompare(y[0],'zh-Hant')).map(([c,n]) => {
+      const on = prevSkip.has(c) ? !prevSkip.get(c) : !NO_AUDIT_CATS.test(c);
+      return `<label><input type="checkbox" value="${esc(c)}"${on ? ' checked' : ''}><span>${esc(c)} <span class="muted">（${n} 筆）</span></span></label>`;
+    }).join('');
+  }
+}
+$('#impModeUpdate').addEventListener('change', renderImportDialog);
+$('#impModeReplace').addEventListener('change', renderImportDialog);
+$('#impOk').addEventListener('click', () => {
+  if(!pending) return;
+  if($('#impModeUpdate').checked) applyDeptUpdate(); else applyReplace();
+  pending = null; $('#dlgImport').close(); go('home');
+});
+function applyDeptUpdate(){
+  const p = pending, file = new Map(p.assets.map(a => [a.id, a]));
+  const add = $('#impAdd').checked;
+  let n = 0;
+  for(const a of S.assets){
+    const f = file.get(a.id); if(!f) continue;
+    if(p.hasDeptCol) a.dept = f.dept;
+    if(p.hasKeeperCol){ a.keeper = f.keeper; a.keeperId = f.keeperId; }
+    if(f.loc) a.loc = f.loc;
+    if(f.qty) a.qty = f.qty;
+    n++;
+  }
+  const onlyFile = p.assets.filter(a => !byId.has(a.id));
+  const notInFile = S.assets.filter(a => !file.has(a.id)).map(a => ({...a}));
+  if(add){
+    const catSkip = new Map(S.assets.map(a => [catOf(a), a.skip]));
+    for(const f of onlyFile) S.assets.push({...f, skip:catSkip.has(catOf(f)) ? catSkip.get(catOf(f)) : NO_AUDIT_CATS.test(catOf(f)), addedFrom:p.name});
+  }
+  S.recon = {mode:'update', source:p.name, at:new Date().toISOString(), base:S.source, added:add, onlyInFile:onlyFile, notInFile};
+  S.deptSource = p.name;
+  reindex(); save(true);
+  toast(`已更新 ${n} 筆部門資料${add ? `，新增 ${onlyFile.length} 筆財產` : ''}`);
+}
+function applyReplace(){
+  const on = new Set($$('#impCats input:checked').map(i => i.value));
+  const old = byId;
+  pending.assets.forEach(a => {
+    a.skip = !on.has(catOf(a));
+    const o = old.get(a.id);              // 新清冊沒有的部門／保管人資料沿用舊值
+    if(o){ a.dept = a.dept || o.dept || ''; a.keeper = a.keeper || o.keeper || ''; a.keeperId = a.keeperId || o.keeperId || ''; a.loc = a.loc || o.loc || ''; }
+  });
+  // 與原清冊比對差異（供查核）
+  if(S.assets.length){
+    const nw = new Set(pending.assets.map(a => a.id));
+    S.recon = {mode:'replace', source:pending.name, base:S.source, at:new Date().toISOString(),
+      onlyInFile:pending.assets.filter(a => !old.has(a.id)).map(a => ({...a})), notInFile:S.assets.filter(a => !nw.has(a.id)).map(a => ({...a}))};
+  } else S.recon = null;
+  S.assets = pending.assets; S.source = pending.name; S.importedAt = new Date().toISOString();
+  S.deptSource = pending.hasDeptCol ? pending.name : '';
+  const ids = new Set(S.assets.map(a => a.id));
+  // 原本在清冊內、新清冊已不存在的盤點紀錄，轉為清冊外條碼，避免遺失
+  for(const [id, sc] of Object.entries(S.scans)){
+    if(!ids.has(id)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'重新匯入後不在清冊內'}); delete S.scans[id]; }
+  }
+  if(!S.audit.name) S.audit.name = guessAuditName();
+  if(!S.audit.startedAt) S.audit.startedAt = new Date().toISOString();
+  reindex(); save(true);
+  toast(`已匯入 ${S.assets.length} 筆財產`);
+}
+function guessAuditName(){ const y = new Date().getFullYear() - 1911; return `${y}年度財產盤點`; }
+const drop = $('#drop');
+drop.addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+/* ======================= 匯出 Excel ======================= */
+function sheet(rows, widths){
+  const ws = XLSX.utils.json_to_sheet(rows);
+  if(widths) ws['!cols'] = widths.map(w => ({wch:w}));
+  return ws;
+}
+function downloadWb(wb, filename){
+  const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const file = new File([blob], filename, {type:blob.type});
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // 手機上用分享選單（可存到檔案、傳 LINE／Email），電腦直接下載
+  if(mobile && navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file], title:filename}).catch(err => { if(err.name !== 'AbortError') plainDownload(blob, filename); });
+  } else plainDownload(blob, filename);
+}
+function plainDownload(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+function assetRow(a){
+  const sc = S.scans[a.id];
+  return {'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '',
+    '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點位置':sc ? sc.loc || '' : '',
+    '盤點方式':sc ? (sc.method === 'manual' ? '手動輸入' : '掃描') : '', '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
+}
+const W = [13,26,26,18,6,14,10,10,14,9,16,9,12,9,10,18,30];
+function exportResult(){
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  const st = stats();
+  const wb = XLSX.utils.book_new();
+  const info = [
+    ['公司', S.company], ['盤點名稱', S.audit.name], ['盤點基準日', S.audit.date], ['財產清冊來源', S.source],
+    ['匯出時間', fmtTime(new Date().toISOString())], [], ['應盤點筆數', st.total], ['已盤點', st.done], ['未盤點', st.todo],
+    ['盤點完成率', st.total ? Math.round(st.done / st.total * 1000) / 10 + '%' : '—'], ['清冊外條碼', st.extra],
+    ['未納入盤點（無形資產等）', S.assets.filter(a => a.skip).length],
+    ...(S.recon ? [[], ['清冊比對', `${S.recon.source} vs ${S.recon.base}`], [S.recon.mode === 'update' ? '僅在部門資料檔' : '僅在新清冊', S.recon.onlyInFile.length], [S.recon.mode === 'update' ? '僅在盤點清冊' : '僅在原清冊', (S.recon.notInFile || []).length]] : [])
+  ];
+  const wsInfo = XLSX.utils.aoa_to_sheet(info); wsInfo['!cols'] = [{wch:24},{wch:36}];
+  XLSX.utils.book_append_sheet(wb, wsInfo, '摘要');
+  const grp = key => groupStats(key).map(r => ({[key === 'dept' ? '部門' : '資產類別']:r.g, '應盤點':r.total, '已盤點':r.done, '未盤點':r.total - r.done, '完成率':r.total ? Math.round(r.done / r.total * 1000) / 10 + '%' : ''}));
+  const addTotal = (rows, k) => { const t = rows.reduce((s,r) => ({a:s.a + r['應盤點'], d:s.d + r['已盤點']}), {a:0,d:0}); rows.push({[k]:'合計', '應盤點':t.a, '已盤點':t.d, '未盤點':t.a - t.d, '完成率':t.a ? Math.round(t.d / t.a * 1000) / 10 + '%' : ''}); return rows; };
+  XLSX.utils.book_append_sheet(wb, sheet(addTotal(grp('dept'), '部門'), [20,10,10,10,10]), '部門統計');
+  XLSX.utils.book_append_sheet(wb, sheet(addTotal(grp('cat'), '資產類別'), [24,10,10,10,10]), '類別統計');
+  const all = inScope();
+  XLSX.utils.book_append_sheet(wb, sheet(all.map(assetRow), W), '盤點明細');
+  XLSX.utils.book_append_sheet(wb, sheet(all.filter(a => S.scans[a.id]).map(assetRow), W), '已盤點');
+  XLSX.utils.book_append_sheet(wb, sheet(all.filter(a => !S.scans[a.id]).map(assetRow), W), '未盤點');
+  XLSX.utils.book_append_sheet(wb, sheet(S.extras.length ? S.extras.map(x => ({'條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '位置':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [22,16,10,14,30]), '清冊外條碼');
+  if(S.recon){
+    const r = S.recon, lab = r.mode === 'update' ? ['僅在部門資料檔', '僅在盤點清冊'] : ['僅在新清冊', '僅在原清冊'];
+    const row = (type, src, a) => ({'差異類型':type, '來源檔案':src, '財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '',
+      '處理':r.mode === 'update' ? (type === lab[0] ? (r.added ? '已加入盤點清冊' : '未加入盤點清冊') : '維持原部門資料') : (type === lab[0] ? '納入盤點' : '未納入盤點')});
+    const rows = r.onlyInFile.map(a => row(lab[0], r.source, a)).concat((r.notInFile || []).map(a => row(lab[1], r.base, a)));
+    XLSX.utils.book_append_sheet(wb, sheet(rows.length ? rows : [{'差異類型':'（無差異）'}], [14,30,13,26,24,18,6,14,10,16]), '清冊差異');
+  }
+  const sk = S.assets.filter(a => a.skip);
+  if(sk.length) XLSX.utils.book_append_sheet(wb, sheet(sk.map(a => ({'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a)})), [13,30,30,20]), '未納入盤點');
+  downloadWb(wb, `盤點結果_${(S.audit.name || '財產盤點').replace(/[\\/:*?"<>|]/g,'')}_${stamp()}.xlsx`);
+}
+$('#btnExport').addEventListener('click', exportResult);
+$('#btnExportHome').addEventListener('click', exportResult);
+$('#btnExportMaster').addEventListener('click', () => {
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheet(S.assets.map(a => ({'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '', '備註':a.note || ''})), [13,30,30,20,6,14,10,10,16,30]), '財產清單');
+  downloadWb(wb, `財產清單_含部門欄_${stamp()}.xlsx`);
+});
+
+/* ---------- 備份與合併 ---------- */
+$('#btnBackup').addEventListener('click', () => {
+  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, scans:S.scans, extras:S.extras, labels:S.labels,
+    assets:S.assets.map(a => ({id:a.id, dept:a.dept, keeper:a.keeper, loc:a.loc}))};
+  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const name = `盤點紀錄備份_${S.prefs.by ? S.prefs.by + '_' : ''}${stamp()}.json`;
+  const file = new File([blob], name, {type:'application/json'});
+  if(/Android|iPhone|iPad/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({files:[file]})) navigator.share({files:[file]}).catch(() => plainDownload(blob, name));
+  else plainDownload(blob, name);
+});
+$('#btnMerge').addEventListener('click', () => $('#mergeFile').click());
+$('#mergeFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  try{
+    const d = JSON.parse(await f.text());
+    if(d.app !== 'asset-inventory') throw new Error('不是本 App 的備份檔');
+    let add = 0, ex = 0, dept = 0;
+    for(const [id, sc] of Object.entries(d.scans || {})){
+      const cur = S.scans[id];
+      if(!cur){ if(byId.has(id)){ S.scans[id] = sc; add++; } else if(!S.extras.some(x => x.code === id)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'合併時不在清冊內'}); ex++; } }
+      else if(sc.t < cur.t) S.scans[id] = {...sc, status:cur.status !== '正常' ? cur.status : sc.status, note:cur.note || sc.note}; // 保留最早盤點時間
+    }
+    for(const x of d.extras || []) if(!S.extras.some(y => y.code === x.code)){ S.extras.push(x); ex++; }
+    let lab = 0;
+    for(const [id, l] of Object.entries(d.labels || {})){
+      if(!byId.has(id)) continue;
+      const cur = S.labels[id] || (S.labels[id] = {printCount:0});
+      if(l.printedAt && (!cur.printedAt || l.printedAt < cur.printedAt)) cur.printedAt = l.printedAt;
+      if(l.lastPrintedAt && (!cur.lastPrintedAt || l.lastPrintedAt > cur.lastPrintedAt)) cur.lastPrintedAt = l.lastPrintedAt;
+      cur.printCount = Math.max(cur.printCount || 0, l.printCount || 0);
+      if(l.affixedAt && (!cur.affixedAt || l.affixedAt < cur.affixedAt)){ if(!cur.affixedAt) lab++; cur.affixedAt = l.affixedAt; cur.affixedBy = l.affixedBy; cur.affixMethod = l.affixMethod; }
+    }
+    for(const a of d.assets || []){ const o = byId.get(a.id); if(o && !o.dept && a.dept){ o.dept = a.dept; dept++; } if(o && !o.keeper && a.keeper) o.keeper = a.keeper; if(o && !o.loc && a.loc) o.loc = a.loc; }
+    save(true); render();
+    alert(`合併完成：新增 ${add} 筆盤點紀錄、${ex} 筆清冊外條碼、${lab} 筆標籤黏貼確認，補上 ${dept} 筆部門資料。`);
+  }catch(err){ alert('合併失敗：' + err.message); }
+});
+
+$('#btnNewAudit').addEventListener('click', () => {
+  if(!confirm('開始新一期盤點會清除目前所有盤點紀錄與清冊外條碼（財產清冊與部門資料保留）。\n建議先匯出 Excel 盤點結果。確定要繼續？')) return;
+  S.scans = {}; S.extras = []; S.audit = {name:guessAuditName(), date:'', startedAt:new Date().toISOString()};
+  save(true); openAudit(); render();
+});
+$('#btnWipe').addEventListener('click', () => {
+  if(!confirm('確定清除全部資料（財產清冊、盤點紀錄、設定）？此動作無法復原。')) return;
+  if(!confirm('再次確認：真的要清除全部資料？')) return;
+  S = blank(); reindex(); save(true); go('home');
+});
+function renderSettings(){
+  let size = 0; try{ size = (localStorage.getItem(KEY) || '').length; }catch(e){}
+  $('#storageInfo').textContent = S.assets.length ? `目前資料：財產 ${S.assets.length} 筆（納入盤點 ${inScope().length} 筆）、盤點紀錄 ${Object.keys(S.scans).length} 筆、約 ${Math.round(size / 1024)} KB。` : '';
+}
+
+/* ======================= 標籤 ======================= */
+const SIZES = {
+  '50x30':{w:50,h:30}, '60x40':{w:60,h:40}, '40x25':{w:40,h:25},
+  'a4-3x8':{w:70,h:37,cols:3,rows:8,mt:0.5,ml:0}, 'a4-4x10':{w:48.5,h:25.4,cols:4,rows:10,mt:21.5,ml:8},
+  'a4-3x7':{w:63.5,h:38.1,cols:3,rows:7,mt:15.15,ml:7.25,gap:2.5}
+};
+function qrSvg(text){
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const n = q.getModuleCount(), m = 1; let d = '';
+  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(q.isDark(r,c)) d += `M${c+m},${r+m}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n+2*m} ${n+2*m}" shape-rendering="crispEdges"><path d="${d}" fill="#000"/></svg>`;
+}
+function bcSvg(text, hmm){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  JsBarcode(el, text, {format:'CODE128', displayValue:false, margin:0, height:50, width:2});
+  el.setAttribute('preserveAspectRatio', 'none');
+  el.style.height = hmm + 'mm';
+  el.removeAttribute('width'); el.removeAttribute('height');
+  return el.outerHTML;
+}
+function labelHtml(a, sz, opt){
+  const scale = Math.min(sz.w / 50, sz.h / 30);
+  const style = `width:${sz.w}mm;height:${sz.h}mm`;
+  // 文字依可用寬度自動縮小，確保編號完整顯示（等寬字約 0.6em、中文字約 1em）
+  const fit = (base, textW, units) => Math.min(base * scale, textW / Math.max(units, 1)).toFixed(2);
+  const cjkLen = s => [...String(s)].reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 1 : .55), 0);
+  if(opt.type === 'qr'){
+    const side = Math.min(sz.h - 3, sz.w * .4);
+    const textW = sz.w - 4 - side - 2;
+    const co = opt.company ? `<div class="co" style="font-size:${fit(2.3, textW, cjkLen(opt.company))}mm">${esc(opt.company)}</div>` : '';
+    const sp = opt.spec && a.spec ? `<div class="lsp" style="font-size:${(2.2*scale).toFixed(2)}mm">${esc(a.spec)}</div>` : '';
+    return `<div class="lbl qr" style="${style}"><div class="code" style="width:${side}mm;height:${side}mm">${qrSvg(a.id)}</div><div class="txt">${co}<div class="lid" style="font-size:${fit(3.8, textW, a.id.length * .6)}mm">${esc(a.id)}</div><div class="lnm" style="font-size:${(2.8*scale).toFixed(2)}mm;-webkit-line-clamp:${opt.spec ? 2 : 3}">${esc(a.name)}</div>${sp}</div></div>`;
+  }
+  const textW = sz.w - 4;
+  const co = opt.company ? `<div class="co" style="font-size:${fit(2.3, textW, cjkLen(opt.company))}mm">${esc(opt.company)}</div>` : '';
+  const sp = opt.spec && a.spec ? `<div class="lsp" style="font-size:${(2.2*scale).toFixed(2)}mm">${esc(a.spec)}</div>` : '';
+  const bh = Math.max(6, sz.h * (opt.spec ? .3 : .36));
+  return `<div class="lbl bc" style="${style}">${co}<div class="lnm" style="font-size:${(2.8*scale).toFixed(2)}mm;-webkit-line-clamp:1">${esc(a.name)}</div><div class="code">${bcSvg(a.id, bh)}</div><div class="lid" style="font-size:${fit(3.4, textW, a.id.length * .6)}mm">${esc(a.id)}</div>${sp}</div>`;
+}
+// 編號比較：依文字＋數字自然排序（A202412009 < A202412010）
+const idCmp = (x, y) => x.localeCompare(y, 'en', {numeric:true, sensitivity:'base'});
+const inRange = (id, from, to) => (!from || idCmp(id, from) >= 0) && (!to || idCmp(id, to) <= 0);
+function labelTargets(){
+  // 指定編號：可混用單一編號與「起~迄」區間；有填就只印指定的
+  const spec = $('#lblIds').value.replace(/\s*(~|～|至)\s*/g, '~').split(/[\s,，、;；]+/).filter(Boolean);
+  if(spec.length){
+    const out = [], seen = new Set();
+    const push = a => { if(a && !seen.has(a.id)){ seen.add(a.id); out.push(a); } };
+    for(const tok of spec){
+      if(tok.includes('~')){
+        let [f, to] = tok.split('~').map(normId);
+        if(f && to && idCmp(f, to) > 0) [f, to] = [to, f];
+        S.assets.filter(a => inRange(a.id, f, to)).sort((x,y) => idCmp(x.id, y.id)).forEach(push);
+      } else push(byId.get(normId(tok)));
+    }
+    return out;
+  }
+  const d = $('#lblDept').value, c = $('#lblCat').value, st = $('#lblState').value;
+  let f = normId($('#lblFrom').value), to = normId($('#lblTo').value);
+  if(f && to && idCmp(f, to) > 0) [f, to] = [to, f];
+  const rows = inScope().filter(a => (!d || deptOf(a) === d) && (!c || catOf(a) === c) && lblStateOk(a, st) && inRange(a.id, f, to));
+  return (f || to) ? rows.sort((x,y) => idCmp(x.id, y.id)) : rows;
+}
+function renderLabelProgress(){
+  const ls = labelStats();
+  $('#lkTotal').textContent = ls.total; $('#lkPrinted').textContent = ls.printed; $('#lkAffixed').textContent = ls.affixed; $('#lkTodo').textContent = ls.todo;
+  let tot = {total:0, printed:0, affixed:0};
+  let h = `<thead><tr><th>部門</th><th class="n">應貼</th><th class="n">已印</th><th class="n">已貼</th><th class="n">未貼</th><th style="width:24%">黏貼進度</th></tr></thead><tbody>`;
+  for(const r of groupLabelStats()){
+    tot.total += r.total; tot.printed += r.printed; tot.affixed += r.affixed;
+    const todo = r.total - r.affixed;
+    h += `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n">${r.printed}</td><td class="n" style="color:var(--ok)">${r.affixed}</td><td class="n" style="color:${todo ? 'var(--bad)' : 'inherit'}">${todo}</td><td><div class="bar"><i style="width:${r.total ? r.affixed / r.total * 100 : 0}%"></i></div></td></tr>`;
+  }
+  h += `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${tot.printed}</th><th class="n">${tot.affixed}</th><th class="n">${tot.total - tot.affixed}</th><th></th></tr></tfoot>`;
+  $('#lblStatTable').innerHTML = h;
+}
+$('#lblStatTable').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-grp]'); if(!tr) return;
+  Object.assign(listState, {filter:'all', q:'', dept:tr.dataset.grp, cat:'', lbl:'unaffixed', limit:200});
+  go('list');
+});
+$('#btnAffixMode').addEventListener('click', () => { S.prefs.scanMode = 'affix'; save(); go('scan'); });
+$('#btnResetLabels').addEventListener('click', () => {
+  if(!confirm('確定清除全部標籤列印及黏貼紀錄？（財產清冊與盤點紀錄不受影響）')) return;
+  if(!confirm('再次確認：清除後無法復原，建議先匯出標籤作業紀錄。')) return;
+  S.labels = {}; save(true); render(); toast('已清除標籤紀錄');
+});
+$('#btnExportLabels').addEventListener('click', () => {
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  const ls = labelStats(), wb = XLSX.utils.book_new();
+  const info = [['公司', S.company], ['財產清冊來源', S.source], ['匯出時間', fmtTime(new Date().toISOString())], [],
+    ['應貼標籤', ls.total], ['已列印', ls.printed], ['已黏貼', ls.affixed], ['未黏貼', ls.todo], ['黏貼完成率', ls.total ? Math.round(ls.affixed / ls.total * 1000) / 10 + '%' : '—']];
+  const wsInfo = XLSX.utils.aoa_to_sheet(info); wsInfo['!cols'] = [{wch:16},{wch:36}];
+  XLSX.utils.book_append_sheet(wb, wsInfo, '摘要');
+  const g = groupLabelStats().map(r => ({'部門':r.g, '應貼':r.total, '已列印':r.printed, '已黏貼':r.affixed, '未黏貼':r.total - r.affixed, '黏貼完成率':r.total ? Math.round(r.affixed / r.total * 1000) / 10 + '%' : ''}));
+  g.push({'部門':'合計', '應貼':ls.total, '已列印':ls.printed, '已黏貼':ls.affixed, '未黏貼':ls.todo, '黏貼完成率':ls.total ? Math.round(ls.affixed / ls.total * 1000) / 10 + '%' : ''});
+  XLSX.utils.book_append_sheet(wb, sheet(g, [20,8,8,8,8,10]), '部門統計');
+  const row = a => { const L = S.labels[a.id] || {};
+    return {'財產編號':a.id, '財產名稱':a.name, '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '', '標籤狀態':labelText(a.id).replace('標籤', ''),
+      '首次列印時間':fmtTime(L.printedAt), '列印次數':L.printCount || 0, '最近列印時間':fmtTime(L.lastPrintedAt), '黏貼確認時間':fmtTime(L.affixedAt), '確認人':L.affixedBy || '',
+      '確認方式':({scan:'掃描', manual:'手動', bulk:'批次'})[L.affixMethod] || ''}; };
+  const W2 = [13,28,18,6,14,10,10,16,8,16,16,10,8];
+  XLSX.utils.book_append_sheet(wb, sheet(inScope().map(row), W2), '標籤明細');
+  XLSX.utils.book_append_sheet(wb, sheet(inScope().filter(a => !isAffixed(a.id)).map(row), W2), '未黏貼');
+  downloadWb(wb, `標籤作業紀錄_${stamp()}.xlsx`);
+});
+function lblOpts(){ return {company:$('#lblCompany').value.trim(), type:$('#lblType').value, spec:$('#lblSpec').checked}; }
+function renderLabels(first){
+  const P = S.prefs;
+  if(first !== false){
+    $('#lblSize').value = P.lblSize; $('#lblType').value = P.lblType; $('#lblSpec').checked = P.lblSpec; $('#lblGuides').checked = P.lblGuides;
+    if(P.lblCompany == null) P.lblCompany = S.company;
+    $('#lblCompany').value = P.lblCompany;
+    const dv = $('#lblDept').value, cv = $('#lblCat').value;
+    fillSelect($('#lblDept'), depts(), '全部部門', dv); fillSelect($('#lblCat'), cats(), '全部資產類別', cv);
+  }
+  if(!$('#idList').options.length) $('#idList').innerHTML = S.assets.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+  renderLabelProgress();
+  const sz = SIZES[$('#lblSize').value];
+  $('#lblSkip').closest('label').classList.toggle('hide', !sz.cols);
+  const t = labelTargets();
+  const ids = $('#lblIds').value.trim();
+  $('#lblCount').textContent = S.assets.length ? `將列印 ${t.length} 張標籤${sz.cols ? `，約 ${Math.ceil((t.length + skipN() ) / (sz.cols * sz.rows))} 張 A4` : ''}${ids && !t.length ? '（找不到指定編號）' : ''}` : '尚未匯入財產清冊';
+  const o = lblOpts();
+  $('#labelPreview').innerHTML = t.slice(0, 12).map(a => labelHtml(a, sz, o)).join('') || '<div class="empty" style="width:100%">沒有可預覽的標籤</div>';
+}
+function skipN(){ const n = parseInt($('#lblSkip').value, 10); return isNaN(n) || n < 1 ? 0 : n - 1; }
+['lblSize','lblType','lblSpec','lblGuides','lblCompany','lblDept','lblCat','lblState','lblFrom','lblTo','lblIds','lblSkip'].forEach(id => {
+  $('#' + id).addEventListener(['lblCompany','lblIds','lblSkip','lblFrom','lblTo'].includes(id) ? 'input' : 'change', () => {
+    Object.assign(S.prefs, {lblSize:$('#lblSize').value, lblType:$('#lblType').value, lblSpec:$('#lblSpec').checked, lblGuides:$('#lblGuides').checked, lblCompany:$('#lblCompany').value});
+    save(); renderLabels(false);
+  });
+});
+let pageStyle = null;
+$('#btnPrint').addEventListener('click', () => {
+  const t = labelTargets();
+  if(!t.length) return toast('沒有要列印的標籤');
+  if(t.length > 300 && !confirm(`將產生 ${t.length} 張標籤，可能需要一些時間，確定列印？`)) return;
+  const sz = SIZES[$('#lblSize').value], o = lblOpts();
+  const area = $('#printArea');
+  area.classList.toggle('guides', $('#lblGuides').checked);
+  let css, html = '';
+  if(sz.cols){
+    css = `@page{size:A4 portrait;margin:0}`;
+    const per = sz.cols * sz.rows, gap = sz.gap || 0;
+    const cells = Array(skipN()).fill(null).concat(t);
+    for(let i = 0; i < cells.length; i += per){
+      html += `<div class="sheet" style="width:210mm;height:296mm;padding:${sz.mt}mm 0 0 ${sz.ml}mm;grid-template-columns:repeat(${sz.cols},${sz.w}mm);grid-auto-rows:${sz.h}mm;column-gap:${gap}mm;overflow:hidden">` +
+        cells.slice(i, i + per).map(a => a ? labelHtml(a, sz, o) : `<div style="width:${sz.w}mm;height:${sz.h}mm"></div>`).join('') + '</div>';
+    }
+  } else {
+    css = `@page{size:${sz.w}mm ${sz.h}mm;margin:0}`;
+    html = t.map(a => `<div class="sheet" style="width:${sz.w}mm;height:${sz.h}mm;overflow:hidden">${labelHtml(a, sz, o)}</div>`).join('');
+  }
+  if(!pageStyle){ pageStyle = document.createElement('style'); document.head.appendChild(pageStyle); }
+  pageStyle.textContent = css;
+  area.innerHTML = html;
+  printIds = t.map(a => a.id);
+  setTimeout(() => {
+    window.print();
+    // 列印視窗關閉後詢問是否成功，成功才記錄列印時間
+    setTimeout(() => { $('#prInfo').textContent = `剛才送出 ${printIds.length} 張標籤（${printIds[0]}${printIds.length > 1 ? ' … ' + printIds[printIds.length - 1] : ''}），是否已成功列印？`; if(!$('#dlgPrinted').open) $('#dlgPrinted').showModal(); }, 400);
+  }, 50);
+});
+let printIds = [];
+$('#prYes').addEventListener('click', () => { markPrinted(printIds); printIds = []; $('#dlgPrinted').close(); render(); toast('已記錄列印時間'); });
+$('#prNo').addEventListener('click', () => { printIds = []; $('#dlgPrinted').close(); });
+window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
+
+/* ======================= 啟動 ======================= */
+render();
+if('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
