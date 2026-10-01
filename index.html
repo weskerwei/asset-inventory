@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#1f5f8b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="財產盤點">
+<meta name="apple-mobile-web-app-title" content="雲象科技財產盤點">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
-<title>財產盤點</title>
+<title>雲象科技財產盤點</title>
 <style>
 :root{
   --bg:#f4f6f8; --card:#fff; --ink:#1d2730; --muted:#66727e; --line:#dfe4e9;
@@ -127,7 +127,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 </head>
 <body>
 <header class="top">
-  <h1 id="hdrTitle">財產盤點</h1>
+  <h1 id="hdrTitle">雲象科技財產盤點</h1>
   <small id="hdrSub"></small>
 </header>
 
@@ -324,6 +324,37 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   </div>
 </section>
 
+<!-- ============ 紀錄 ============ -->
+<section class="view" id="v-records">
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:6px">
+      <div>
+        <h2 style="margin:0">本期盤點過程</h2>
+        <div class="small muted" id="logMeta"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <select id="logType" class="grow">
+        <option value="">全部動作</option><option value="ok">盤點成功（掃描／手動）</option><option value="dup">重複掃描</option>
+        <option value="extra">清冊外條碼</option><option value="change">取消盤點／修改</option><option value="other">匯入、合併及其他</option>
+      </select>
+      <input type="search" id="logQ" class="grow" placeholder="搜尋人員、財產編號…">
+    </div>
+    <div class="list" id="logList"></div>
+    <div style="text-align:center;padding:8px" class="hide" id="logMoreWrap"><button class="btn sm" id="btnLogMore">顯示更多</button></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn grow" id="btnCheckpoint">存檔目前進度（不清除）</button>
+      <button class="btn pri grow" id="btnCloseAudit">結束本期盤點並存檔</button>
+    </div>
+    <p class="small muted" style="margin:8px 0 0">「結束本期盤點並存檔」會把本期的盤點過程與結果完整存入下方「歷次盤點紀錄」，再清空盤點紀錄、開始新一期。</p>
+  </div>
+  <div class="card">
+    <h2>歷次盤點紀錄</h2>
+    <div class="list" id="histList"><div class="empty">載入中…</div></div>
+    <p class="small muted" style="margin:8px 0 0">紀錄存在這支手機／這台電腦的瀏覽器中，可隨時重新匯出當時的 Excel。重要紀錄建議另外匯出保存。</p>
+  </div>
+</section>
+
 <!-- ============ 設定 ============ -->
 <section class="view" id="v-settings">
   <div class="card">
@@ -357,7 +388,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <h2>盤點作業</h2>
     <div class="row">
       <button class="btn grow" id="btnEditAudit2">編輯盤點名稱／基準日</button>
-      <button class="btn danger grow" id="btnNewAudit">開始新一期盤點（清除盤點紀錄）</button>
+      <button class="btn grow" id="btnNewAudit">結束本期盤點並存檔，開始新一期</button>
     </div>
     <h3>危險操作</h3>
     <button class="btn danger" id="btnWipe">清除全部資料</button>
@@ -372,6 +403,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   <button data-go="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 12h10"/></svg>掃描</button>
   <button data-go="list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>清單</button>
   <button data-go="labels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>標籤</button>
+  <button data-go="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>紀錄</button>
   <button data-go="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</button>
 </nav>
 
@@ -447,6 +479,12 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="bulkOk">套用</button></div>
 </dialog>
 
+<dialog id="dlgHist">
+  <div class="dh" id="dhTitle"></div>
+  <div class="db" id="dhBody"></div>
+  <div class="df"><button class="btn danger" id="dhDel">刪除此紀錄</button><span style="flex:1"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="dhExport">匯出 Excel</button></div>
+</dialog>
+
 <dialog id="dlgPrinted">
   <div class="dh">列印確認</div>
   <div class="db"><p id="prInfo" style="margin:0"></p><p class="small muted">確認後會記錄這些標籤的列印時間，方便追蹤哪些標籤還沒印、還沒貼。</p></div>
@@ -470,6 +508,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 <script>
 'use strict';
 /* ======================= 資料與儲存 ======================= */
+const APP_NAME = '雲象科技財產盤點';
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
 const NO_AUDIT_CATS = /電腦軟體|專利權|專門技術|商標|著作權|商譽|租賃改良|無形/;
@@ -482,6 +521,7 @@ function blank(){
     audit:{name:'', date:'', startedAt:''},
     scans:{},            // id -> {t,by,loc,status,note,method}
     extras:[],           // {code,t,by,loc,note}
+    log:[],              // 本期盤點過程 {k,t,by,type,id,info}
     labels:{},           // id -> {printedAt,lastPrintedAt,printCount,affixedAt,affixedBy,affixMethod}  標籤列印及黏貼紀錄
     prefs:{lblSize:'50x30', lblType:'qr', lblSpec:false, lblGuides:false, beep:true, vibe:true, by:'', statG:'dept', scanMode:'audit'}
   };
@@ -503,6 +543,7 @@ window.addEventListener('pagehide', () => save(true));
 if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 
 if(!S.labels) S.labels = {};
+if(!S.log) S.log = [];
 let byId = new Map();
 function reindex(){ byId = new Map(S.assets.map(a => [a.id, a])); }
 reindex();
@@ -534,6 +575,55 @@ function go(v){
   window.scrollTo(0,0);
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if(b) go(b.dataset.go); });
+
+/* ======================= 盤點過程紀錄 ======================= */
+const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註',
+  delExtra:'刪除清冊外條碼', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
+const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
+function logEv(type, id, info){
+  S.log.push({k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', type, id:id || '', info:info || ''});
+}
+
+// 歷次盤點紀錄存在 IndexedDB（容量比 localStorage 大很多，可保存多年的紀錄）
+const idb = {
+  db:null,
+  open(){
+    if(this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('assetInventory', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('history', {keyPath:'id'});
+      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async tx(mode, fn){
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('history', mode), st = tx.objectStore('history');
+      const req = fn(st);
+      tx.oncomplete = () => res(req && req.result);
+      tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  },
+  all(){ return this.tx('readonly', st => st.getAll()); },
+  get(id){ return this.tx('readonly', st => st.get(id)); },
+  put(rec){ return this.tx('readwrite', st => st.put(rec)); },
+  del(id){ return this.tx('readwrite', st => st.delete(id)); }
+};
+function curCtx(){
+  return {company:S.company, audit:{...S.audit}, source:S.source, deptSource:S.deptSource, recon:S.recon,
+    assets:S.assets, scans:S.scans, extras:S.extras, log:S.log};
+}
+function snapshot(kind){
+  const st = stats(), now = new Date().toISOString();
+  return JSON.parse(JSON.stringify({
+    id:'H' + Date.now(), kind, savedAt:now, savedBy:S.prefs.by || '',
+    company:S.company, audit:{...S.audit, closedAt:kind === 'close' ? now : ''}, source:S.source, deptSource:S.deptSource, recon:S.recon,
+    summary:{...st, depts:groupStats('dept').map(r => ({g:r.g, total:r.total, done:r.done}))},
+    assets:S.assets.map(({id, name, spec, cat, dept, keeper, keeperId, loc, qty, note, skip}) => ({id, name, spec, cat, dept, keeper, keeperId, loc, qty, note, skip})),
+    scans:S.scans, extras:S.extras, log:S.log
+  }));
+}
 
 /* ======================= 標籤紀錄 ======================= */
 const isPrinted = id => { const l = S.labels[id]; return !!(l && (l.printedAt || l.affixedAt)); };
@@ -594,13 +684,14 @@ function groupStats(key){
 /* ======================= 畫面繪製 ======================= */
 function render(){
   const st = stats();
-  $('#hdrTitle').textContent = S.audit.name || '財產盤點';
+  $('#hdrTitle').textContent = APP_NAME;
   $('#hdrSub').textContent = S.assets.length ? `${st.done}/${st.total}` : '';
   if(curView === 'home') renderHome(st);
   if(curView === 'scan') renderScan();
   if(curView === 'list') renderList();
   if(curView === 'labels') renderLabels();
   if(curView === 'settings') renderSettings();
+  if(curView === 'records') renderRecords();
 }
 
 function renderHome(st){
@@ -729,11 +820,16 @@ $('#daSave').addEventListener('click', () => {
   const a = byId.get(daId); if(!a) return;
   a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim();
   const sc = S.scans[daId];
-  if(sc){ sc.status = $('#daStatus').value; sc.note = $('#daNote').value.trim(); }
+  if(sc){
+    const st = $('#daStatus').value, nt = $('#daNote').value.trim();
+    if(st !== (sc.status || '正常') || nt !== (sc.note || '')) logEv('edit', daId, `狀況：${st}${nt ? '；備註：' + nt : ''}`);
+    sc.status = st; sc.note = nt;
+  }
   save(); $('#dlgAsset').close(); render(); toast('已儲存');
 });
 $('#daUnscan').addEventListener('click', () => {
   if(!confirm(`確定取消 ${daId} 的盤點紀錄？`)) return;
+  logEv('unscan', daId, `原盤點：${fmtTime(S.scans[daId].t)} ${S.scans[daId].by || ''}`);
   delete S.scans[daId]; save(); $('#dlgAsset').close(); render(); toast('已取消盤點');
 });
 $('#daScanNow').addEventListener('click', () => { if(!requireAuditor()) return; record(daId, 'manual'); $('#dlgAsset').close(); render(); });
@@ -758,7 +854,7 @@ function openExtra(i){
   $('#dlgExtra').showModal();
 }
 $('#exSave').addEventListener('click', () => { S.extras[exIdx].note = $('#exNote').value.trim(); save(); $('#dlgExtra').close(); render(); });
-$('#exDel').addEventListener('click', () => { if(!confirm('確定刪除這筆清冊外條碼？')) return; S.extras.splice(exIdx,1); save(); $('#dlgExtra').close(); render(); });
+$('#exDel').addEventListener('click', () => { if(!confirm('確定刪除這筆清冊外條碼？')) return; logEv('delExtra', S.extras[exIdx].code, S.extras[exIdx].note || ''); S.extras.splice(exIdx,1); save(); $('#dlgExtra').close(); render(); });
 
 $('#btnBulkDept').addEventListener('click', () => {
   const n = filtered().length;
@@ -783,6 +879,7 @@ $('#btnEditAudit').addEventListener('click', openAudit);
 $('#btnEditAudit2').addEventListener('click', openAudit);
 $('#auOk').addEventListener('click', () => {
   S.audit.name = $('#auName').value.trim(); S.audit.date = $('#auDate').value.trim(); S.company = $('#auCompany').value.trim();
+  logEv('audit', '', `名稱：${S.audit.name}；基準日：${S.audit.date || '—'}`);
   save(); $('#dlgAudit').close(); render();
 });
 
@@ -830,10 +927,12 @@ function record(rawCode, method){
   const a = byId.get(id);
   if(a){
     if(S.scans[id]){
+      logEv('dup', id, `已於 ${fmtTime(S.scans[id].t)} 由 ${S.scans[id].by || '—'} 盤點`); save();
       feedback('dup', a, S.scans[id]);
       return 'dup';
     }
     S.scans[id] = {t:new Date().toISOString(), by, loc, status:'正常', note:'', method};
+    logEv(method === 'manual' ? 'manual' : 'scan', id, loc ? '位置：' + loc : '');
     if(loc && !a.loc) a.loc = loc;
     save();
     recentIds.unshift(id);
@@ -843,8 +942,8 @@ function record(rawCode, method){
   // 不在清冊內：記錄為清冊外條碼（同一條碼只記一次）
   if(!S.extras.some(x => x.code === code)){
     S.extras.push({code, t:new Date().toISOString(), by, loc, note:''});
-    save();
   }
+  logEv('extra', code, loc ? '位置：' + loc : ''); save();
   feedback('bad', null, null, code);
   return 'bad';
 }
@@ -1115,6 +1214,7 @@ function applyDeptUpdate(){
   }
   S.recon = {mode:'update', source:p.name, at:new Date().toISOString(), base:S.source, added:add, onlyInFile:onlyFile, notInFile};
   S.deptSource = p.name;
+  logEv('import', '', `${p.name}（只更新部門／保管人，比對成功 ${n} 筆${add ? `、新增 ${onlyFile.length} 筆` : ''}）`);
   reindex(); save(true);
   toast(`已更新 ${n} 筆部門資料${add ? `，新增 ${onlyFile.length} 筆財產` : ''}`);
 }
@@ -1141,6 +1241,7 @@ function applyReplace(){
   }
   if(!S.audit.name) S.audit.name = guessAuditName();
   if(!S.audit.startedAt) S.audit.startedAt = new Date().toISOString();
+  logEv('import', '', `${pending.name}（取代清冊，共 ${S.assets.length} 筆）`);
   reindex(); save(true);
   toast(`已匯入 ${S.assets.length} 筆財產`);
 }
@@ -1173,45 +1274,65 @@ function plainDownload(blob, filename){
   const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
 }
-function assetRow(a){
-  const sc = S.scans[a.id];
+function assetRow(a, scans){
+  const sc = scans[a.id];
   return {'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '',
     '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點位置':sc ? sc.loc || '' : '',
     '盤點方式':sc ? (sc.method === 'manual' ? '手動輸入' : '掃描') : '', '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
 }
 const W = [13,26,26,18,6,14,10,10,14,9,16,9,12,9,10,18,30];
-function exportResult(){
-  if(!S.assets.length) return toast('尚未匯入財產清冊');
-  const st = stats();
+function buildResultWb(c){
+  const scope = c.assets.filter(a => !a.skip);
+  const done = scope.filter(a => c.scans[a.id]).length;
+  const st = {total:scope.length, done, todo:scope.length - done, extra:c.extras.length};
+  const pct = (d, n) => n ? Math.round(d / n * 1000) / 10 + '%' : '';
   const wb = XLSX.utils.book_new();
   const info = [
-    ['公司', S.company], ['盤點名稱', S.audit.name], ['盤點基準日', S.audit.date], ['財產清冊來源', S.source],
+    ['公司', c.company], ['盤點名稱', c.audit.name], ['盤點基準日', c.audit.date], ['盤點開始', fmtTime(c.audit.startedAt)],
+    ['盤點結束', c.audit.closedAt ? fmtTime(c.audit.closedAt) : '（進行中）'], ['財產清冊來源', c.source],
     ['匯出時間', fmtTime(new Date().toISOString())], [], ['應盤點筆數', st.total], ['已盤點', st.done], ['未盤點', st.todo],
-    ['盤點完成率', st.total ? Math.round(st.done / st.total * 1000) / 10 + '%' : '—'], ['清冊外條碼', st.extra],
-    ['未納入盤點（無形資產等）', S.assets.filter(a => a.skip).length],
-    ...(S.recon ? [[], ['清冊比對', `${S.recon.source} vs ${S.recon.base}`], [S.recon.mode === 'update' ? '僅在部門資料檔' : '僅在新清冊', S.recon.onlyInFile.length], [S.recon.mode === 'update' ? '僅在盤點清冊' : '僅在原清冊', (S.recon.notInFile || []).length]] : [])
+    ['盤點完成率', pct(st.done, st.total) || '—'], ['清冊外條碼', st.extra],
+    ['未納入盤點（無形資產等）', c.assets.filter(a => a.skip).length], ['盤點過程紀錄筆數', (c.log || []).length],
+    ...(c.recon ? [[], ['清冊比對', `${c.recon.source} vs ${c.recon.base}`], [c.recon.mode === 'update' ? '僅在部門資料檔' : '僅在新清冊', c.recon.onlyInFile.length], [c.recon.mode === 'update' ? '僅在盤點清冊' : '僅在原清冊', (c.recon.notInFile || []).length]] : [])
   ];
-  const wsInfo = XLSX.utils.aoa_to_sheet(info); wsInfo['!cols'] = [{wch:24},{wch:36}];
+  const wsInfo = XLSX.utils.aoa_to_sheet(info); wsInfo['!cols'] = [{wch:24},{wch:40}];
   XLSX.utils.book_append_sheet(wb, wsInfo, '摘要');
-  const grp = key => groupStats(key).map(r => ({[key === 'dept' ? '部門' : '資產類別']:r.g, '應盤點':r.total, '已盤點':r.done, '未盤點':r.total - r.done, '完成率':r.total ? Math.round(r.done / r.total * 1000) / 10 + '%' : ''}));
-  const addTotal = (rows, k) => { const t = rows.reduce((s,r) => ({a:s.a + r['應盤點'], d:s.d + r['已盤點']}), {a:0,d:0}); rows.push({[k]:'合計', '應盤點':t.a, '已盤點':t.d, '未盤點':t.a - t.d, '完成率':t.a ? Math.round(t.d / t.a * 1000) / 10 + '%' : ''}); return rows; };
-  XLSX.utils.book_append_sheet(wb, sheet(addTotal(grp('dept'), '部門'), [20,10,10,10,10]), '部門統計');
-  XLSX.utils.book_append_sheet(wb, sheet(addTotal(grp('cat'), '資產類別'), [24,10,10,10,10]), '類別統計');
-  const all = inScope();
-  XLSX.utils.book_append_sheet(wb, sheet(all.map(assetRow), W), '盤點明細');
-  XLSX.utils.book_append_sheet(wb, sheet(all.filter(a => S.scans[a.id]).map(assetRow), W), '已盤點');
-  XLSX.utils.book_append_sheet(wb, sheet(all.filter(a => !S.scans[a.id]).map(assetRow), W), '未盤點');
-  XLSX.utils.book_append_sheet(wb, sheet(S.extras.length ? S.extras.map(x => ({'條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '位置':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [22,16,10,14,30]), '清冊外條碼');
-  if(S.recon){
-    const r = S.recon, lab = r.mode === 'update' ? ['僅在部門資料檔', '僅在盤點清冊'] : ['僅在新清冊', '僅在原清冊'];
-    const row = (type, src, a) => ({'差異類型':type, '來源檔案':src, '財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '',
+  const grp = key => {
+    const m = new Map();
+    for(const a of scope){ const g = key === 'dept' ? deptOf(a) : catOf(a); const r = m.get(g) || {g, total:0, done:0}; r.total++; if(c.scans[a.id]) r.done++; m.set(g, r); }
+    const rows = [...m.values()].sort((x,y) => (x.g === UNSET) - (y.g === UNSET) || x.g.localeCompare(y.g, 'zh-Hant'))
+      .map(r => ({[key === 'dept' ? '部門' : '資產類別']:r.g, '應盤點':r.total, '已盤點':r.done, '未盤點':r.total - r.done, '完成率':pct(r.done, r.total)}));
+    rows.push({[key === 'dept' ? '部門' : '資產類別']:'合計', '應盤點':st.total, '已盤點':st.done, '未盤點':st.todo, '完成率':pct(st.done, st.total)});
+    return rows;
+  };
+  XLSX.utils.book_append_sheet(wb, sheet(grp('dept'), [20,10,10,10,10]), '部門統計');
+  XLSX.utils.book_append_sheet(wb, sheet(grp('cat'), [24,10,10,10,10]), '類別統計');
+  const row = a => assetRow(a, c.scans);
+  XLSX.utils.book_append_sheet(wb, sheet(scope.map(row), W), '盤點明細');
+  XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => c.scans[a.id]).map(row), W), '已盤點');
+  XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => !c.scans[a.id]).map(row), W), '未盤點');
+  XLSX.utils.book_append_sheet(wb, sheet(c.extras.length ? c.extras.map(x => ({'條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '位置':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [22,16,10,14,30]), '清冊外條碼');
+  // 盤點過程：每一次掃描、重複、清冊外、取消、修改等動作
+  const names = new Map(c.assets.map(a => [a.id, a.name]));
+  const logRows = (c.log || []).slice().sort((x,y) => x.t.localeCompare(y.t)).map(e => ({'時間':fmtTime(e.t) + ':' + pad(new Date(e.t).getSeconds()), '人員':e.by, '動作':ACT[e.type] || e.type,
+    '財產編號／條碼':e.id, '財產名稱':names.get(e.id) || '', '說明':e.info}));
+  XLSX.utils.book_append_sheet(wb, sheet(logRows.length ? logRows : [{'時間':'（無紀錄）'}], [20,10,14,18,28,40]), '盤點過程');
+  if(c.recon){
+    const r = c.recon, lab = r.mode === 'update' ? ['僅在部門資料檔', '僅在盤點清冊'] : ['僅在新清冊', '僅在原清冊'];
+    const drow = (type, src, a) => ({'差異類型':type, '來源檔案':src, '財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '',
       '處理':r.mode === 'update' ? (type === lab[0] ? (r.added ? '已加入盤點清冊' : '未加入盤點清冊') : '維持原部門資料') : (type === lab[0] ? '納入盤點' : '未納入盤點')});
-    const rows = r.onlyInFile.map(a => row(lab[0], r.source, a)).concat((r.notInFile || []).map(a => row(lab[1], r.base, a)));
+    const rows = r.onlyInFile.map(a => drow(lab[0], r.source, a)).concat((r.notInFile || []).map(a => drow(lab[1], r.base, a)));
     XLSX.utils.book_append_sheet(wb, sheet(rows.length ? rows : [{'差異類型':'（無差異）'}], [14,30,13,26,24,18,6,14,10,16]), '清冊差異');
   }
-  const sk = S.assets.filter(a => a.skip);
+  const sk = c.assets.filter(a => a.skip);
   if(sk.length) XLSX.utils.book_append_sheet(wb, sheet(sk.map(a => ({'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a)})), [13,30,30,20]), '未納入盤點');
-  downloadWb(wb, `盤點結果_${(S.audit.name || '財產盤點').replace(/[\\/:*?"<>|]/g,'')}_${stamp()}.xlsx`);
+  return wb;
+}
+const wbName = c => `盤點結果_${(c.audit.name || '財產盤點').replace(/[\\/:*?"<>|]/g,'')}_${stamp()}.xlsx`;
+function exportResult(){
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  const c = curCtx();
+  downloadWb(buildResultWb(c), wbName(c));
 }
 $('#btnExport').addEventListener('click', exportResult);
 $('#btnExportHome').addEventListener('click', exportResult);
@@ -1224,7 +1345,7 @@ $('#btnExportMaster').addEventListener('click', () => {
 
 /* ---------- 備份與合併 ---------- */
 $('#btnBackup').addEventListener('click', () => {
-  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, scans:S.scans, extras:S.extras, labels:S.labels,
+  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, scans:S.scans, extras:S.extras, labels:S.labels, log:S.log,
     assets:S.assets.map(a => ({id:a.id, dept:a.dept, keeper:a.keeper, loc:a.loc}))};
   const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
   const name = `盤點紀錄備份_${S.prefs.by ? S.prefs.by + '_' : ''}${stamp()}.json`;
@@ -1254,16 +1375,94 @@ $('#mergeFile').addEventListener('change', async e => {
       cur.printCount = Math.max(cur.printCount || 0, l.printCount || 0);
       if(l.affixedAt && (!cur.affixedAt || l.affixedAt < cur.affixedAt)){ if(!cur.affixedAt) lab++; cur.affixedAt = l.affixedAt; cur.affixedBy = l.affixedBy; cur.affixMethod = l.affixMethod; }
     }
+    const keys = new Set(S.log.map(e => e.k)); let ev = 0;
+    for(const e of d.log || []) if(e && e.k && !keys.has(e.k)){ S.log.push(e); keys.add(e.k); ev++; }
+    S.log.sort((x,y) => x.t.localeCompare(y.t));
+    logEv('merge', '', `${f.name}：新增盤點 ${add} 筆、清冊外 ${ex} 筆、過程紀錄 ${ev} 筆`);
     for(const a of d.assets || []){ const o = byId.get(a.id); if(o && !o.dept && a.dept){ o.dept = a.dept; dept++; } if(o && !o.keeper && a.keeper) o.keeper = a.keeper; if(o && !o.loc && a.loc) o.loc = a.loc; }
     save(true); render();
     alert(`合併完成：新增 ${add} 筆盤點紀錄、${ex} 筆清冊外條碼、${lab} 筆標籤黏貼確認，補上 ${dept} 筆部門資料。`);
   }catch(err){ alert('合併失敗：' + err.message); }
 });
 
-$('#btnNewAudit').addEventListener('click', () => {
-  if(!confirm('開始新一期盤點會清除目前所有盤點紀錄與清冊外條碼（財產清冊與部門資料保留）。\n建議先匯出 Excel 盤點結果。確定要繼續？')) return;
-  S.scans = {}; S.extras = []; S.audit = {name:guessAuditName(), date:'', startedAt:new Date().toISOString()};
-  save(true); openAudit(); render();
+async function closeAudit(){
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  if(!requireAuditor()) return;
+  const st = stats();
+  if(!confirm(`結束「${S.audit.name || '本期盤點'}」並存檔？\n\n已盤 ${st.done}／應盤 ${st.total}，未盤 ${st.todo}，清冊外 ${st.extra}。\n盤點過程與結果會存入「歷次盤點紀錄」，接著清空盤點紀錄開始新一期（財產清冊、部門與標籤紀錄保留）。`)) return;
+  logEv('close', '', `已盤 ${st.done}／應盤 ${st.total}`);
+  const rec = snapshot('close');
+  try{ await idb.put(rec); }
+  catch(e){ S.log.pop(); save(true); return alert('存檔失敗，盤點資料未清除：' + (e && e.message || e)); }
+  S.scans = {}; S.extras = []; S.log = [];
+  S.audit = {name:guessAuditName(), date:'', startedAt:new Date().toISOString()};
+  logEv('start', '', `接續「${rec.audit.name}」`);
+  save(true); render(); toast('已存檔，開始新一期盤點'); openAudit();
+}
+async function checkpoint(){
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  if(!requireAuditor()) return;
+  logEv('checkpoint', '', `已盤 ${stats().done}／應盤 ${stats().total}`);
+  try{ await idb.put(snapshot('checkpoint')); save(true); render(); toast('已存檔目前進度'); }
+  catch(e){ S.log.pop(); alert('存檔失敗：' + (e && e.message || e)); }
+}
+$('#btnNewAudit').addEventListener('click', closeAudit);
+$('#btnCloseAudit').addEventListener('click', closeAudit);
+$('#btnCheckpoint').addEventListener('click', checkpoint);
+
+/* ---------- 紀錄頁 ---------- */
+const logState = {type:'', q:'', limit:150};
+function renderRecords(){
+  const log = S.log;
+  $('#logMeta').textContent = `${S.audit.name || '（未命名盤點）'}・開始於 ${fmtTime(S.audit.startedAt) || '—'}・共 ${log.length} 筆動作`;
+  const q = logState.q.trim().toLowerCase();
+  const rows = log.filter(e => {
+    const g = ACT_GROUP[e.type] || 'other';
+    if(logState.type && g !== logState.type) return false;
+    if(q && !(e.by + ' ' + e.id + ' ' + e.info).toLowerCase().includes(q)) return false;
+    return true;
+  }).reverse();
+  const color = {ok:'var(--ok)', dup:'var(--warn)', extra:'var(--warn)', change:'var(--bad)'};
+  $('#logList').innerHTML = rows.slice(0, logState.limit).map(e => {
+    const a = byId.get(e.id), g = ACT_GROUP[e.type] || 'other';
+    return `<div class="it" ${a ? `data-id="${esc(e.id)}"` : ''}><div class="m"><div><b style="color:${color[g] || 'var(--ink)'}">${esc(ACT[e.type] || e.type)}</b> <span class="small muted">${esc(fmtTime(e.t))}・${esc(e.by || '—')}</span></div>` +
+      `<div class="nm">${esc(e.id)}${a ? '　' + esc(a.name) : ''}${e.info ? '　' + esc(e.info) : ''}</div></div></div>`;
+  }).join('') || '<div class="empty">尚無紀錄</div>';
+  $('#logMoreWrap').classList.toggle('hide', rows.length <= logState.limit);
+  renderHistory();
+}
+async function renderHistory(){
+  let list = [];
+  try{ list = await idb.all(); }catch(e){ $('#histList').innerHTML = '<div class="empty">此瀏覽器無法讀取紀錄</div>'; return; }
+  list.sort((x,y) => y.savedAt.localeCompare(x.savedAt));
+  $('#histList').innerHTML = list.length ? list.map(r => {
+    const s = r.summary, p = s.total ? Math.round(s.done / s.total * 1000) / 10 : 0;
+    return `<div class="it" data-h="${esc(r.id)}"><div class="m"><div class="id">${esc(r.audit.name || '（未命名盤點）')} <span class="pill ${r.kind === 'close' ? 'ok' : ''}">${r.kind === 'close' ? '已結束' : '期中存檔'}</span></div>` +
+      `<div class="nm">${esc(fmtTime(r.audit.startedAt))} ～ ${esc(fmtTime(r.savedAt))}・存檔人 ${esc(r.savedBy || '—')}</div>` +
+      `<div class="nm">已盤 ${s.done}／${s.total}（${p}%）・未盤 ${s.todo}・清冊外 ${s.extra}・過程 ${(r.log || []).length} 筆</div></div></div>`;
+  }).join('') : '<div class="empty">尚無歷次盤點紀錄</div>';
+}
+$('#logType').addEventListener('change', e => { logState.type = e.target.value; logState.limit = 150; renderRecords(); });
+$('#logQ').addEventListener('input', e => { logState.q = e.target.value; logState.limit = 150; renderRecords(); });
+$('#btnLogMore').addEventListener('click', () => { logState.limit += 300; renderRecords(); });
+$('#logList').addEventListener('click', e => { const it = e.target.closest('[data-id]'); if(it) openAsset(it.dataset.id); });
+let curHist = null;
+$('#histList').addEventListener('click', async e => {
+  const it = e.target.closest('[data-h]'); if(!it) return;
+  curHist = await idb.get(it.dataset.h); if(!curHist) return;
+  const r = curHist, s = r.summary;
+  $('#dhTitle').textContent = r.audit.name || '（未命名盤點）';
+  $('#dhBody').innerHTML = `<div class="small">類型：${r.kind === 'close' ? '盤點結束存檔' : '期中存檔'}<br>盤點期間：${esc(fmtTime(r.audit.startedAt))} ～ ${esc(fmtTime(r.savedAt))}<br>基準日：${esc(r.audit.date || '—')}　存檔人：${esc(r.savedBy || '—')}<br>清冊來源：${esc(r.source || '—')}</div>` +
+    `<div class="kpis" style="margin-top:10px"><div class="kpi"><b>${s.total}</b><span>應盤點</span></div><div class="kpi ok"><b>${s.done}</b><span>已盤點</span></div><div class="kpi bad"><b>${s.todo}</b><span>未盤點</span></div><div class="kpi warn"><b>${s.extra}</b><span>清冊外</span></div></div>` +
+    `<table class="t"><thead><tr><th>部門</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th></tr></thead><tbody>` +
+    s.depts.map(d => `<tr><td>${esc(d.g)}</td><td class="n">${d.total}</td><td class="n">${d.done}</td><td class="n">${d.total - d.done}</td></tr>`).join('') + '</tbody></table>' +
+    `<p class="small muted">匯出的 Excel 含盤點明細、已盤／未盤、清冊外條碼、部門與類別統計，以及完整的「盤點過程」。</p>`;
+  $('#dlgHist').showModal();
+});
+$('#dhExport').addEventListener('click', () => { if(curHist) downloadWb(buildResultWb(curHist), wbName(curHist)); });
+$('#dhDel').addEventListener('click', async () => {
+  if(!curHist || !confirm(`確定刪除「${curHist.audit.name}」這筆盤點紀錄？`) || !confirm('再次確認：刪除後無法復原，建議先匯出 Excel。')) return;
+  await idb.del(curHist.id); curHist = null; $('#dlgHist').close(); renderHistory(); toast('已刪除紀錄');
 });
 $('#btnWipe').addEventListener('click', () => {
   if(!confirm('確定清除全部資料（財產清冊、盤點紀錄、設定）？此動作無法復原。')) return;
