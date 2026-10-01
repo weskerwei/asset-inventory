@@ -1,5 +1,5 @@
 // 離線快取：App 本身的檔案全部快取，之後沒有網路也能開啟與盤點
-const CACHE = 'asset-inventory-v4';
+const CACHE = 'asset-inventory-v5';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './icon-180.png', './icon-192.png', './icon-512.png',

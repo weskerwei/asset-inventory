@@ -620,7 +620,7 @@ function snapshot(kind){
     id:'H' + Date.now(), kind, savedAt:now, savedBy:S.prefs.by || '',
     company:S.company, audit:{...S.audit, closedAt:kind === 'close' ? now : ''}, source:S.source, deptSource:S.deptSource, recon:S.recon,
     summary:{...st, depts:groupStats('dept').map(r => ({g:r.g, total:r.total, done:r.done}))},
-    assets:S.assets.map(({id, name, spec, cat, dept, keeper, keeperId, loc, qty, note, skip}) => ({id, name, spec, cat, dept, keeper, keeperId, loc, qty, note, skip})),
+    assets:S.assets.map(({id, name, spec, cat, dept, deptId, keeper, keeperId, acqDate, loc, qty, note, skip}) => ({id, name, spec, cat, dept, deptId, keeper, keeperId, acqDate, loc, qty, note, skip})),
     scans:S.scans, extras:S.extras, log:S.log
   }));
 }
@@ -741,7 +741,7 @@ function filtered(){
     if(listState.dept && deptOf(a) !== listState.dept) return false;
     if(listState.cat && catOf(a) !== listState.cat) return false;
     if(listState.lbl && !lblStateOk(a, listState.lbl)) return false;
-    if(q && ![a.id, a.name, a.spec, a.keeper, a.loc, a.dept].some(v => v && String(v).toLowerCase().includes(q))) return false;
+    if(q && ![a.id, a.name, a.spec, a.keeper, a.keeperId, a.loc, a.dept, a.deptId].some(v => v && String(v).toLowerCase().includes(q))) return false;
     return true;
   });
 }
@@ -798,7 +798,8 @@ function openAsset(id){
   const a = byId.get(id); if(!a) return;
   daId = id;
   $('#daTitle').textContent = a.id;
-  $('#daInfo').innerHTML = `<b>${esc(a.name)}</b>${a.spec ? '<br>' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `<br>數量：${esc(a.qty)}（一個財產編號含多件）` : ''}<br><span class="muted">${esc(catOf(a))}${a.note ? '<br>備註：' + esc(a.note) : ''}</span>`;
+  $('#daInfo').innerHTML = `<b>${esc(a.name)}</b>${a.spec ? '<br>' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `<br>數量：${esc(a.qty)}（一個財產編號含多件）` : ''}<br><span class="muted">${esc(catOf(a))}${a.acqDate ? '　取得日期 ' + esc(a.acqDate) : ''}` +
+    `${a.deptId || a.keeperId ? `<br>部門代號 ${esc(a.deptId || '—')}　保管人代號 ${esc(a.keeperId || '—')}` : ''}${a.note ? '<br>備註：' + esc(a.note) : ''}</span>`;
   $('#daDept').value = a.dept || ''; $('#daKeeper').value = a.keeper || ''; $('#daLoc').value = a.loc || '';
   $('#deptList').innerHTML = depts().filter(d => d !== UNSET).map(d => `<option value="${esc(d)}">`).join('');
   const L = S.labels[id] || {};
@@ -1095,6 +1096,8 @@ const H = {
   dept:[/^(保管|使用)?部門(名稱)?$/, /^(保管|使用)單位$/, /^部門(?!代號)/],
   keeper:[/^(保管人|使用人)(名稱|姓名)?$/],
   keeperId:[/^(保管人|使用人)(代號|工號|編號)$/],
+  deptId:[/^(保管|使用)?(部門|單位)(代號|代碼|編號)$/],
+  acqDate:[/^取得日期$/, /^(購置|購入|取得)(日期|日)$/],
   loc:[/存放|地點|位置/],
   qty:[/^數量$/],
   note:[/^備註$/]
@@ -1128,7 +1131,7 @@ function parseWorkbook(wb){
       // 類別：「6253」+「管-雜項購置」組成與財產目錄相同的「6253 管-雜項購置」
       let c = g('cat');
       if(g('catName')) c = c ? `${c} ${g('catName')}` : g('catName');
-      const a = {id, name:nm, spec:g('spec'), cat:c || cat, dept:g('dept'), keeper:g('keeper'), keeperId:g('keeperId'),
+      const a = {id, name:nm, spec:g('spec'), cat:c || cat, dept:g('dept'), deptId:g('deptId'), keeper:g('keeper'), keeperId:g('keeperId'), acqDate:g('acqDate'),
         loc:g('loc'), qty:g('qty'), note:g('note')};
       if(out.has(id)) dupCount++;
       out.set(id, a);
@@ -1172,6 +1175,7 @@ function renderImportDialog(){
       `・<b>${matched}</b> 筆比對成功${p.hasDeptCol || p.hasKeeperCol ? `，將更新部門${p.hasKeeperCol ? '與保管人' : ''}` : '（此檔沒有部門欄，部門資料不變）'}<br>` +
       `・<b style="color:var(--warn)">${noData}</b> 筆在目前清冊、但此檔沒有（維持原部門資料）<br>` +
       `・<b style="color:var(--warn)">${onlyFile.length}</b> 筆在此檔、但不在目前清冊` +
+      (() => { const ks = FILL_KEYS.filter(k => p.assets.some(f => f[k] && byId.has(f.id) && !byId.get(f.id)[k])); return ks.length ? `<br>・會補上目前清冊中空白的欄位：<b>${ks.map(k => FIELD_NAMES[k]).join('、')}</b>` : ''; })() +
       `<br><span class="small muted">兩邊的差異明細會放在匯出 Excel 的「清冊差異」工作表。</span>`;
     $('#impAddCount').textContent = onlyFile.length;
   } else {
@@ -1201,16 +1205,20 @@ $('#impOk').addEventListener('click', () => {
   if($('#impModeUpdate').checked) applyDeptUpdate(); else applyReplace();
   pending = null; $('#dlgImport').close(); go('home');
 });
+const FILL_KEYS = ['acqDate', 'spec', 'cat', 'qty', 'deptId', 'keeperId', 'note'];
+const FIELD_NAMES = {acqDate:'取得日期', spec:'規格', cat:'資產類別', qty:'數量', deptId:'部門代號', keeperId:'保管人代號', note:'備註'};
 function applyDeptUpdate(){
   const p = pending, file = new Map(p.assets.map(a => [a.id, a]));
   const add = $('#impAdd').checked;
-  let n = 0;
+  let n = 0; const filled = {};
   for(const a of S.assets){
     const f = file.get(a.id); if(!f) continue;
-    if(p.hasDeptCol) a.dept = f.dept;
+    if(p.hasDeptCol){ a.dept = f.dept; if(f.deptId) a.deptId = f.deptId; }
     if(p.hasKeeperCol){ a.keeper = f.keeper; a.keeperId = f.keeperId; }
     if(f.loc) a.loc = f.loc;
     if(f.qty) a.qty = f.qty;
+    // 目前清冊空白、此檔有值的欄位（例如從財產目錄補上取得日期）
+    for(const k of FILL_KEYS) if(!a[k] && f[k]){ a[k] = f[k]; filled[k] = (filled[k] || 0) + 1; }
     n++;
   }
   const onlyFile = p.assets.filter(a => !byId.has(a.id));
@@ -1221,9 +1229,10 @@ function applyDeptUpdate(){
   }
   S.recon = {mode:'update', source:p.name, at:new Date().toISOString(), base:S.source, added:add, onlyInFile:onlyFile, notInFile};
   S.deptSource = p.name;
-  logEv('import', '', `${p.name}（只更新部門／保管人，比對成功 ${n} 筆${add ? `、新增 ${onlyFile.length} 筆` : ''}）`);
+  const filledText = Object.entries(filled).map(([k, v]) => `${FIELD_NAMES[k]} ${v} 筆`).join('、');
+  logEv('import', '', `${p.name}（合併：比對成功 ${n} 筆${add ? `、新增 ${onlyFile.length} 筆` : ''}${filledText ? `、補上 ${filledText}` : ''}）`);
   reindex(); save(true);
-  toast(`已更新 ${n} 筆部門資料${add ? `，新增 ${onlyFile.length} 筆財產` : ''}`);
+  toast(`已合併 ${n} 筆${add ? `，新增 ${onlyFile.length} 筆財產` : ''}${filledText ? `，補上 ${filledText}` : ''}`);
 }
 function applyReplace(){
   const on = new Set($$('#impCats input:checked').map(i => i.value));
@@ -1231,7 +1240,10 @@ function applyReplace(){
   pending.assets.forEach(a => {
     a.skip = !on.has(catOf(a));
     const o = old.get(a.id);              // 新清冊沒有的部門／保管人資料沿用舊值
-    if(o){ a.dept = a.dept || o.dept || ''; a.keeper = a.keeper || o.keeper || ''; a.keeperId = a.keeperId || o.keeperId || ''; a.loc = a.loc || o.loc || ''; }
+    if(o){
+      a.dept = a.dept || o.dept || ''; a.keeper = a.keeper || o.keeper || ''; a.keeperId = a.keeperId || o.keeperId || ''; a.loc = a.loc || o.loc || '';
+      for(const k of FILL_KEYS) if(!a[k] && o[k]) a[k] = o[k];   // 例如先匯入的財產目錄帶有取得日期
+    }
   });
   // 與原清冊比對差異（供查核）
   if(S.assets.length){
@@ -1283,11 +1295,11 @@ function plainDownload(blob, filename){
 }
 function assetRow(a, scans){
   const sc = scans[a.id];
-  return {'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '',
+  return {'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '取得日期':a.acqDate || '', '數量':a.qty || '', '部門代號':a.deptId || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '',
     '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點位置':sc ? sc.loc || '' : '',
     '盤點方式':sc ? (sc.method === 'manual' ? '手動輸入' : '掃描') : '', '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
 }
-const W = [13,26,26,18,6,14,10,10,14,9,16,9,12,9,10,18,30];
+const W = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,12,9,10,18,30];
 function buildResultWb(c){
   const scope = c.assets.filter(a => !a.skip);
   const done = scope.filter(a => c.scans[a.id]).length;
@@ -1346,7 +1358,7 @@ $('#btnExportHome').addEventListener('click', exportResult);
 $('#btnExportMaster').addEventListener('click', () => {
   if(!S.assets.length) return toast('尚未匯入財產清冊');
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheet(S.assets.map(a => ({'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '', '備註':a.note || ''})), [13,30,30,20,6,14,10,10,16,30]), '財產清單');
+  XLSX.utils.book_append_sheet(wb, sheet(S.assets.map(a => ({'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '取得日期':a.acqDate || '', '數量':a.qty || '', '部門代號':a.deptId || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '', '備註':a.note || ''})), [13,30,30,20,11,6,9,14,10,10,16,30]), '財產清單');
   downloadWb(wb, `財產清單_含部門欄_${stamp()}.xlsx`);
 });
 
@@ -1579,10 +1591,10 @@ $('#btnExportLabels').addEventListener('click', () => {
   g.push({'部門':'合計', '應貼':ls.total, '已列印':ls.printed, '已黏貼':ls.affixed, '未黏貼':ls.todo, '黏貼完成率':ls.total ? Math.round(ls.affixed / ls.total * 1000) / 10 + '%' : ''});
   XLSX.utils.book_append_sheet(wb, sheet(g, [20,8,8,8,8,10]), '部門統計');
   const row = a => { const L = S.labels[a.id] || {};
-    return {'財產編號':a.id, '財產名稱':a.name, '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '', '標籤狀態':labelText(a.id).replace('標籤', ''),
+    return {'財產編號':a.id, '財產名稱':a.name, '資產類別':catOf(a), '取得日期':a.acqDate || '', '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '', '標籤狀態':labelText(a.id).replace('標籤', ''),
       '首次列印時間':fmtTime(L.printedAt), '列印次數':L.printCount || 0, '最近列印時間':fmtTime(L.lastPrintedAt), '黏貼確認時間':fmtTime(L.affixedAt), '確認人':L.affixedBy || '',
       '確認方式':({scan:'掃描', manual:'手動', bulk:'批次'})[L.affixMethod] || ''}; };
-  const W2 = [13,28,18,6,14,10,10,16,8,16,16,10,8];
+  const W2 = [13,28,18,11,6,14,10,10,16,8,16,16,10,8];
   XLSX.utils.book_append_sheet(wb, sheet(inScope().map(row), W2), '標籤明細');
   XLSX.utils.book_append_sheet(wb, sheet(inScope().filter(a => !isAffixed(a.id)).map(row), W2), '未黏貼');
   downloadWb(wb, `標籤作業紀錄_${stamp()}.xlsx`);
