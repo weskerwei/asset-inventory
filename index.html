@@ -416,7 +416,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   <div class="db">
     <div id="impModeBox" class="cats hide" style="margin-bottom:8px">
       <label><input type="radio" name="impMode" id="impModeReplace"><span>以此檔<b>取代</b>財產清冊（作為盤點母體）</span></label>
-      <label><input type="radio" name="impMode" id="impModeUpdate"><span>只<b>更新部門／保管人</b>（依財產編號比對，清冊不變）</span></label>
+      <label><input type="radio" name="impMode" id="impModeUpdate"><span><b>合併到目前清冊</b>：新增此檔中的新財產，並依財產編號更新部門／保管人（現有財產不會被刪除）</span></label>
     </div>
     <p id="impSummary"></p>
     <div id="impAddBox" class="cats hide">
@@ -1145,11 +1145,15 @@ async function handleFile(f){
     const p = parseWorkbook(wb);
     if(!p.assets.length) return alert('找不到財產資料。請確認檔案中有「資產編號（或財產編號）」與「資產名稱」欄位的標題列。');
     pending = {...p, name:f.name};
-    // 已有清冊且新檔有部門欄 → 可選擇「取代清冊」（預設）或「只更新部門／保管人」
-    const canUpdate = S.assets.length > 0 && (p.hasDeptCol || p.hasKeeperCol);
-    $('#impModeBox').classList.toggle('hide', !canUpdate);
-    $('#impModeReplace').checked = true; $('#impModeUpdate').checked = false;
-    $('#impAdd').checked = false;
+    // 已有清冊時可選「取代」或「合併」。新檔涵蓋不到目前清冊的 8 成（例如只有新增財產的檔案），
+    // 預設改為「合併」，避免誤把整份清冊換成少數幾筆
+    const canMerge = S.assets.length > 0;
+    const fileIds = new Set(p.assets.map(a => a.id));
+    pending.coverage = canMerge ? S.assets.filter(a => fileIds.has(a.id)).length / S.assets.length : 1;
+    const merge = canMerge && pending.coverage < 0.8;
+    $('#impModeBox').classList.toggle('hide', !canMerge);
+    $('#impModeReplace').checked = !merge; $('#impModeUpdate').checked = merge;
+    $('#impAdd').checked = merge;
     renderImportDialog();
     $('#dlgImport').showModal();
   }catch(e){ alert('讀取檔案失敗：' + e.message); }
@@ -1165,18 +1169,21 @@ function renderImportDialog(){
     const onlyFile = p.assets.filter(a => !byId.has(a.id));
     const noData = S.assets.length - matched;
     $('#impSummary').innerHTML = head + `<br>依財產編號與目前清冊（${S.assets.length} 筆）比對：<br>` +
-      `・<b>${matched}</b> 筆比對成功，將更新部門${p.hasKeeperCol ? '與保管人' : ''}<br>` +
+      `・<b>${matched}</b> 筆比對成功${p.hasDeptCol || p.hasKeeperCol ? `，將更新部門${p.hasKeeperCol ? '與保管人' : ''}` : '（此檔沒有部門欄，部門資料不變）'}<br>` +
       `・<b style="color:var(--warn)">${noData}</b> 筆在目前清冊、但此檔沒有（維持原部門資料）<br>` +
       `・<b style="color:var(--warn)">${onlyFile.length}</b> 筆在此檔、但不在目前清冊` +
       `<br><span class="small muted">兩邊的差異明細會放在匯出 Excel 的「清冊差異」工作表。</span>`;
     $('#impAddCount').textContent = onlyFile.length;
   } else {
     const keep = p.assets.filter(a => S.scans[a.id]).length;
-    $('#impSummary').innerHTML = head + '<br>' +
+    const removed = S.assets.filter(a => !p.assets.some(b => b.id === a.id)).length;
+    const warn = S.assets.length && pending.coverage < 0.8
+      ? `<div style="color:var(--bad);font-weight:600;margin:6px 0">⚠ 注意：此檔只包含目前清冊的 ${Math.round(pending.coverage * 100)}%，取代後會有 ${removed} 筆財產從清冊中移除。若只是要加入新增的財產，請改選上方「合併到目前清冊」。</div>` : '';
+    $('#impSummary').innerHTML = head + warn + '<br>' +
       (p.hasDeptCol ? '已讀到部門欄位。' : '<span style="color:var(--warn)">檔案中沒有部門欄位</span>，匯入後可在「清單」頁設定，或下載含部門欄的清單填寫後再匯入。') +
       (S.assets.length ? `<br>將取代目前的 ${S.assets.length} 筆清冊（${esc(S.source)}）${keep ? `，保留其中 ${keep} 筆既有盤點紀錄` : ''}。` +
         `<br>・新清冊有、原清冊沒有：<b style="color:var(--warn)">${p.assets.filter(a => !byId.has(a.id)).length}</b> 筆` +
-        `<br>・原清冊有、新清冊沒有：<b style="color:var(--warn)">${S.assets.filter(a => !p.assets.some(b => b.id === a.id)).length}</b> 筆` +
+        `<br>・原清冊有、新清冊沒有：<b style="color:var(--warn)">${removed}</b> 筆` +
         `<br><span class="small muted">差異明細會放在匯出 Excel 的「清冊差異」工作表。</span>` : '');
     const catCount = new Map();
     p.assets.forEach(a => catCount.set(catOf(a), (catCount.get(catOf(a)) || 0) + 1));
