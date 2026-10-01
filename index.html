@@ -151,6 +151,16 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
       <div style="margin-top:10px" class="bar"><i id="totalBar" style="width:0"></i></div>
       <div class="small muted" style="margin-top:4px" id="totalPct"></div>
     </div>
+    <div class="card" id="roundCard">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div style="font-weight:700">目前階段：<span class="pill ok" id="roundName" style="font-size:14px">初盤</span></div>
+          <div class="small muted" id="roundMeta"></div>
+        </div>
+        <span class="row" style="gap:6px"><button class="btn sm hide" id="btnRoundBack">退回初盤</button><button class="btn sm pri" id="btnNextRound">結束初盤，開始複盤</button></span>
+      </div>
+      <div id="roundCompare" class="small" style="margin-top:8px"></div>
+    </div>
     <div class="kpis">
       <div class="kpi"><b id="kTotal">0</b><span>應盤點</span></div>
       <div class="kpi ok"><b id="kDone">0</b><span>已盤點</span></div>
@@ -190,6 +200,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <div id="modeBanner" class="small hide" style="background:var(--warn-bg);color:var(--warn);border-radius:9px;padding:7px 10px;margin-bottom:10px">
       目前為<b>標籤黏貼確認</b>模式：掃描剛貼好的標籤，只記錄「已黏貼」，<b>不會</b>記成盤點。
     </div>
+    <div id="roundBanner" class="small" style="border-radius:9px;padding:7px 10px;margin-bottom:10px;background:var(--ok-bg);color:var(--ok)"></div>
     <div id="reader"></div>
     <div class="row" style="margin-top:10px">
       <button class="btn pri grow" id="btnCam">開啟相機掃描</button>
@@ -222,7 +233,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 <section class="view" id="v-list">
   <div class="card">
     <div class="seg" id="listSeg" style="margin-bottom:10px">
-      <button data-f="all" class="on">全部</button><button data-f="done">已盤點</button><button data-f="todo">未盤點</button><button data-f="extra">清冊外</button>
+      <button data-f="all" class="on">全部</button><button data-f="done">已盤點</button><button data-f="todo">未盤點</button><button data-f="diff" id="segDiff">初複盤差異</button><button data-f="extra">清冊外</button>
     </div>
     <div class="row">
       <input type="search" id="q" class="grow" placeholder="搜尋編號、名稱、規格、保管人…">
@@ -519,7 +530,9 @@ function blank(){
     company:'雲象科技股份有限公司', source:'', importedAt:'',
     assets:[],           // {id,name,spec,cat,dept,keeper,loc,note,skip}
     audit:{name:'', date:'', startedAt:''},
-    scans:{},            // id -> {t,by,loc,status,note,method}
+    scans:{},            // 初盤：id -> {t,by,loc,status,note,method}
+    scans2:{},           // 複盤：同上
+    round:1,             // 目前階段：1 初盤、2 複盤
     extras:[],           // {code,t,by,loc,note}
     log:[],              // 本期盤點過程 {k,t,by,type,id,info}
     labels:{},           // id -> {printedAt,lastPrintedAt,printCount,affixedAt,affixedBy,affixMethod}  標籤列印及黏貼紀錄
@@ -544,6 +557,8 @@ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().c
 
 if(!S.labels) S.labels = {};
 if(!S.log) S.log = [];
+if(!S.scans2) S.scans2 = {};
+if(S.round !== 2) S.round = 1;
 let byId = new Map();
 function reindex(){ byId = new Map(S.assets.map(a => [a.id, a])); }
 reindex();
@@ -578,10 +593,10 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-go]'
 
 /* ======================= 盤點過程紀錄 ======================= */
 const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註',
-  delExtra:'刪除清冊外條碼', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
-const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
+  delExtra:'刪除清冊外條碼', sameBy:'複盤人員與初盤相同（未記錄）', round2:'結束初盤、開始複盤', round1back:'退回初盤', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
+const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
 function logEv(type, id, info){
-  S.log.push({k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', type, id:id || '', info:info || ''});
+  S.log.push({k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', r:S.round, type, id:id || '', info:info || ''});
 }
 
 // 歷次盤點紀錄存在 IndexedDB（容量比 localStorage 大很多，可保存多年的紀錄）
@@ -612,16 +627,17 @@ const idb = {
 };
 function curCtx(){
   return {company:S.company, audit:{...S.audit}, source:S.source, deptSource:S.deptSource, recon:S.recon,
-    assets:S.assets, scans:S.scans, extras:S.extras, log:S.log};
+    assets:S.assets, scans:S.scans, scans2:S.scans2, round:S.round, extras:S.extras, log:S.log};
 }
 function snapshot(kind){
   const st = stats(), now = new Date().toISOString();
   return JSON.parse(JSON.stringify({
     id:'H' + Date.now(), kind, savedAt:now, savedBy:S.prefs.by || '',
     company:S.company, audit:{...S.audit, closedAt:kind === 'close' ? now : ''}, source:S.source, deptSource:S.deptSource, recon:S.recon,
-    summary:{...st, depts:groupStats('dept').map(r => ({g:r.g, total:r.total, done:r.done}))},
+    round:S.round,
+    summary:{...st, round:S.round, depts:groupStats('dept').map(r => ({g:r.g, total:r.total, done:r.done, d1:r.d1, d2:r.d2, diff:r.diff}))},
     assets:S.assets.map(({id, name, spec, cat, dept, deptId, keeper, keeperId, acqDate, loc, qty, note, skip}) => ({id, name, spec, cat, dept, deptId, keeper, keeperId, acqDate, loc, qty, note, skip})),
-    scans:S.scans, extras:S.extras, log:S.log
+    scans:S.scans, scans2:S.scans2, extras:S.extras, log:S.log
   }));
 }
 
@@ -664,18 +680,33 @@ function markAffixed(id, method){
   l.affixedAt = new Date().toISOString(); l.affixedBy = S.prefs.by; l.affixMethod = method;
 }
 
+/* ======================= 初盤／複盤 ======================= */
+const ROUND = {1:'初盤', 2:'複盤'};
+const SC = (r = S.round) => r === 2 ? S.scans2 : S.scans;   // 目前（或指定）階段的盤點紀錄
+const exRound = x => x.r || 1;
+// 比對兩次盤點：both 相符、only1 複盤未盤到、only2 初盤未盤到、none 兩次皆未盤到
+function compareOf(s1, s2){
+  if(s1 && s2) return s1.by && s1.by === s2.by ? 'same' : 'both';
+  return s1 ? 'only1' : s2 ? 'only2' : 'none';
+}
+const CMP_TEXT = {both:'相符（兩次皆盤到）', only1:'差異：複盤未盤到', only2:'差異：初盤未盤到', none:'兩次皆未盤到', same:'異常：初盤與複盤為同一人'};
+const isDiff = id => { const k = compareOf(S.scans[id], S.scans2[id]); return k === 'only1' || k === 'only2' || k === 'same'; };
+
 /* ======================= 統計 ======================= */
 function stats(){
-  const a = inScope();
-  const done = a.filter(x => S.scans[x.id]).length;
-  return {total:a.length, done, todo:a.length - done, extra:S.extras.length};
+  const a = inScope(), sc = SC();
+  const done = a.filter(x => sc[x.id]).length;
+  const done1 = a.filter(x => S.scans[x.id]).length, done2 = a.filter(x => S.scans2[x.id]).length;
+  const diff = a.filter(x => isDiff(x.id)).length, both = a.filter(x => compareOf(S.scans[x.id], S.scans2[x.id]) === 'both').length;
+  return {total:a.length, done, todo:a.length - done, extra:S.extras.filter(x => exRound(x) === S.round).length, done1, done2, diff, both};
 }
 function groupStats(key){
   const m = new Map();
   for(const a of inScope()){
     const g = key === 'dept' ? deptOf(a) : catOf(a);
-    const r = m.get(g) || {g, total:0, done:0};
-    r.total++; if(S.scans[a.id]) r.done++;
+    const r = m.get(g) || {g, total:0, done:0, d1:0, d2:0, diff:0};
+    r.total++; if(SC()[a.id]) r.done++;
+    if(S.scans[a.id]) r.d1++; if(S.scans2[a.id]) r.d2++; if(isDiff(a.id)) r.diff++;
     m.set(g, r);
   }
   return [...m.values()].sort((x,y) => (x.g === UNSET) - (y.g === UNSET) || x.g.localeCompare(y.g, 'zh-Hant'));
@@ -685,7 +716,7 @@ function groupStats(key){
 function render(){
   const st = stats();
   $('#hdrTitle').textContent = APP_NAME;
-  $('#hdrSub').textContent = S.assets.length ? `${st.done}/${st.total}` : '';
+  $('#hdrSub').textContent = S.assets.length ? `${ROUND[S.round]} ${st.done}/${st.total}` : '';
   if(curView === 'home') renderHome(st);
   if(curView === 'scan') renderScan();
   if(curView === 'list') renderList();
@@ -703,20 +734,58 @@ function renderHome(st){
   $('#auditMeta').textContent = [S.audit.date && ('基準日 ' + S.audit.date), S.source && ('清冊：' + S.source), S.deptSource && S.deptSource !== S.source && ('部門資料：' + S.deptSource)].filter(Boolean).join('　');
   const pct = st.total ? Math.round(st.done / st.total * 1000) / 10 : 0;
   $('#totalBar').style.width = pct + '%';
-  $('#totalPct').textContent = `盤點進度 ${pct}%`;
+  $('#totalPct').textContent = `${ROUND[S.round]}進度 ${pct}%`;
+  const r2 = S.round === 2;
+  $('#roundName').textContent = ROUND[S.round];
+  $('#roundMeta').textContent = r2
+    ? `初盤已於 ${fmtTime(S.audit.round1ClosedAt) || '—'} 結束。複盤時，同一筆財產的盤點人不可與初盤相同。`
+    : '初盤完成後按「結束初盤，開始複盤」，再由其他人員進行複盤。';
+  $('#btnNextRound').textContent = r2 ? '結束本期盤點並存檔' : '結束初盤，開始複盤';
+  $('#btnRoundBack').classList.toggle('hide', !(r2 && !Object.keys(S.scans2).length));
+  $('#roundCompare').innerHTML = r2
+    ? `初盤盤到 <b>${st.done1}</b>　複盤盤到 <b>${st.done2}</b>　兩次相符 <b style="color:var(--ok)">${st.both}</b>　` +
+      `<a href="#" id="lnkDiff" style="color:var(--bad);font-weight:600">初複盤差異 ${st.diff} 筆 ›</a>`
+    : '';
+  $('#kDone').nextElementSibling.textContent = `${ROUND[S.round]}已盤`; $('#kTodo').nextElementSibling.textContent = `${ROUND[S.round]}未盤`;
   $('#kTotal').textContent = st.total; $('#kDone').textContent = st.done; $('#kTodo').textContent = st.todo; $('#kExtra').textContent = st.extra;
   const g = S.prefs.statG;
   $$('#statSeg button').forEach(b => b.classList.toggle('on', b.dataset.g === g));
   const rows = groupStats(g);
   let tot = {total:0, done:0};
-  let h = `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th><th style="width:28%">進度</th></tr></thead><tbody>`;
+  let h = r2
+    ? `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">初盤</th><th class="n">複盤</th><th class="n">差異</th><th style="width:24%">複盤進度</th></tr></thead><tbody>`
+    : `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th><th style="width:28%">進度</th></tr></thead><tbody>`;
+  let d1 = 0, d2 = 0, df = 0;
   for(const r of rows){
-    tot.total += r.total; tot.done += r.done;
+    tot.total += r.total; tot.done += r.done; d1 += r.d1; d2 += r.d2; df += r.diff;
     const p = r.total ? r.done / r.total * 100 : 0;
-    h += `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n" style="color:var(--ok)">${r.done}</td><td class="n" style="color:${r.total - r.done ? 'var(--bad)' : 'inherit'}">${r.total - r.done}</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`;
+    h += r2
+      ? `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n">${r.d1}</td><td class="n" style="color:var(--ok)">${r.d2}</td><td class="n" style="color:${r.diff ? 'var(--bad)' : 'inherit'}">${r.diff}</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`
+      : `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n" style="color:var(--ok)">${r.done}</td><td class="n" style="color:${r.total - r.done ? 'var(--bad)' : 'inherit'}">${r.total - r.done}</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`;
   }
-  h += `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${tot.done}</th><th class="n">${tot.total - tot.done}</th><th></th></tr></tfoot>`;
+  h += r2
+    ? `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${d1}</th><th class="n">${d2}</th><th class="n">${df}</th><th></th></tr></tfoot>`
+    : `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${tot.done}</th><th class="n">${tot.total - tot.done}</th><th></th></tr></tfoot>`;
   $('#statTable').innerHTML = h;
+}
+$('#roundCompare').addEventListener('click', e => {
+  if(!e.target.closest('#lnkDiff')) return; e.preventDefault();
+  Object.assign(listState, {filter:'diff', q:'', dept:'', cat:'', lbl:'', limit:200}); go('list');
+});
+$('#btnNextRound').addEventListener('click', () => S.round === 2 ? closeAudit() : startRound2());
+$('#btnRoundBack').addEventListener('click', () => {
+  if(Object.keys(S.scans2).length) return toast('已有複盤紀錄，無法退回初盤');
+  if(!confirm('退回初盤階段？（尚無任何複盤紀錄）')) return;
+  S.round = 1; delete S.audit.round1ClosedAt; logEv('round1back', '', ''); save(true); render();
+});
+function startRound2(){
+  if(!S.assets.length) return toast('尚未匯入財產清冊');
+  if(!requireAuditor()) return;
+  const st = stats();
+  if(!confirm(`結束初盤並開始複盤？\n\n初盤已盤 ${st.done}／應盤 ${st.total}，未盤 ${st.todo}。\n\n・結束後不能再新增初盤紀錄\n・複盤時，同一筆財產必須由「不同於初盤」的人員盤點`)) return;
+  logEv('round2', '', `初盤已盤 ${st.done}／應盤 ${st.total}`);
+  S.round = 2; S.audit.round1ClosedAt = new Date().toISOString();
+  save(true); render(); toast('已進入複盤階段');
 }
 $('#statSeg').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; S.prefs.statG = b.dataset.g; save(); render(); });
 $('#statTable').addEventListener('click', e => {
@@ -736,8 +805,9 @@ function cats(){ return [...new Set(inScope().map(catOf))].sort((a,b) => a.local
 function filtered(){
   const q = listState.q.trim().toLowerCase();
   return inScope().filter(a => {
-    if(listState.filter === 'done' && !S.scans[a.id]) return false;
-    if(listState.filter === 'todo' && S.scans[a.id]) return false;
+    if(listState.filter === 'done' && !SC()[a.id]) return false;
+    if(listState.filter === 'todo' && SC()[a.id]) return false;
+    if(listState.filter === 'diff' && !isDiff(a.id)) return false;
     if(listState.dept && deptOf(a) !== listState.dept) return false;
     if(listState.cat && catOf(a) !== listState.cat) return false;
     if(listState.lbl && !lblStateOk(a, listState.lbl)) return false;
@@ -746,6 +816,8 @@ function filtered(){
   });
 }
 function renderList(){
+  if(S.round !== 2 && listState.filter === 'diff') listState.filter = 'all';
+  $('#segDiff').classList.toggle('hide', S.round !== 2);
   $$('#listSeg button').forEach(b => b.classList.toggle('on', b.dataset.f === listState.filter));
   $('#q').value = listState.q;
   fillSelect($('#fDept'), depts(), '全部部門', listState.dept);
@@ -758,18 +830,20 @@ function renderList(){
     const q = listState.q.trim().toLowerCase();
     const xs = S.extras.map((x,i) => ({...x, i})).filter(x => !q || (x.code + ' ' + (x.note||'')).toLowerCase().includes(q)).reverse();
     $('#listCount').textContent = `共 ${xs.length} 筆清冊外條碼`;
-    box.innerHTML = xs.length ? xs.map(x => `<div class="it" data-ex="${x.i}"><span class="dot ex"></span><div class="m"><div class="id">${esc(x.code)}</div><div class="nm">${esc(fmtTime(x.t))}　${esc(x.by||'')}　${esc(x.loc||'')}　${esc(x.note||'')}</div></div><span class="pill warn">清冊外</span></div>`).join('') : '<div class="empty">沒有清冊外條碼</div>';
+    box.innerHTML = xs.length ? xs.map(x => `<div class="it" data-ex="${x.i}"><span class="dot ex"></span><div class="m"><div class="id">${esc(x.code)}</div><div class="nm">${esc(fmtTime(x.t))}　${esc(x.by||'')}　${esc(x.loc||'')}　${esc(x.note||'')}</div></div><span class="pill warn">${ROUND[exRound(x)]}・清冊外</span></div>`).join('') : '<div class="empty">沒有清冊外條碼</div>';
     $('#moreWrap').classList.add('hide');
     return;
   }
   const rows = filtered();
-  const done = rows.filter(a => S.scans[a.id]).length;
-  $('#listCount').textContent = `共 ${rows.length} 筆（已盤 ${done}、未盤 ${rows.length - done}）`;
+  const done = rows.filter(a => SC()[a.id]).length;
+  $('#listCount').textContent = `共 ${rows.length} 筆（${ROUND[S.round]}已盤 ${done}、未盤 ${rows.length - done}）`;
   const show = rows.slice(0, listState.limit);
   box.innerHTML = show.length ? show.map(a => {
-    const sc = S.scans[a.id];
-    const pill = sc ? `<span class="pill ${sc.status && sc.status !== '正常' ? 'warn' : 'ok'}">${esc(sc.status && sc.status !== '正常' ? sc.status : '已盤')}</span>` : '<span class="pill bad">未盤</span>';
-    return `<div class="it" data-id="${esc(a.id)}"><span class="dot ${sc ? 'ok' : ''}"></span><div class="m"><div class="id">${esc(a.id)}</div><div class="nm">${esc(a.name)}${a.spec ? '｜' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `｜數量 ${esc(a.qty)}` : ''}</div><div class="nm">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}${sc ? '・' + esc(fmtTime(sc.t)) : ''}・<span style="color:${isAffixed(a.id) ? 'var(--ok)' : 'var(--warn)'}">${labelText(a.id)}</span></div></div>${pill}</div>`;
+    const sc = SC()[a.id];
+    const r1 = S.round === 2 ? `・初盤${S.scans[a.id] ? '✓ ' + esc(S.scans[a.id].by || '') : '✗'}` : '';
+    const pill = S.round === 2 && isDiff(a.id) ? `<span class="pill bad">${esc(CMP_TEXT[compareOf(S.scans[a.id], S.scans2[a.id])].replace(/^差異：|^異常：/, ''))}</span>`
+      : sc ? `<span class="pill ${sc.status && sc.status !== '正常' ? 'warn' : 'ok'}">${esc(sc.status && sc.status !== '正常' ? sc.status : ROUND[S.round] + '已盤')}</span>` : `<span class="pill bad">${ROUND[S.round]}未盤</span>`;
+    return `<div class="it" data-id="${esc(a.id)}"><span class="dot ${sc ? 'ok' : ''}"></span><div class="m"><div class="id">${esc(a.id)}</div><div class="nm">${esc(a.name)}${a.spec ? '｜' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `｜數量 ${esc(a.qty)}` : ''}</div><div class="nm">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}${sc ? '・' + esc(fmtTime(sc.t)) : ''}${r1}・<span style="color:${isAffixed(a.id) ? 'var(--ok)' : 'var(--warn)'}">${labelText(a.id)}</span></div></div>${pill}</div>`;
   }).join('') : '<div class="empty">沒有符合條件的財產</div>';
   $('#moreWrap').classList.toggle('hide', rows.length <= listState.limit);
 }
@@ -807,20 +881,24 @@ function openAsset(id){
     (L.printedAt ? `<br>首次列印 ${esc(fmtTime(L.printedAt))}${L.printCount > 1 ? `（共印 ${L.printCount} 次，最近 ${esc(fmtTime(L.lastPrintedAt))}）` : ''}` : '') +
     (L.affixedAt ? `<br>黏貼確認 ${esc(fmtTime(L.affixedAt))}・${esc(L.affixedBy || '—')}・${({scan:'掃描', manual:'手動', bulk:'批次'})[L.affixMethod] || ''}` : '');
   $('#daAffix').textContent = L.affixedAt ? '取消黏貼確認' : '確認已黏貼';
-  const sc = S.scans[id];
-  $('#daScanBox').classList.toggle('hide', !sc);
+  const sc = SC()[id];
+  const line = (r, s) => s ? `<b>${ROUND[r]}</b>：${esc(fmtTime(s.t))}・${esc(s.by || '—')}・${s.method === 'manual' ? '手動' : '掃描'}${s.loc ? '・' + esc(s.loc) : ''}${s.status && s.status !== '正常' ? '・' + esc(s.status) : ''}` : `<b>${ROUND[r]}</b>：<span style="color:var(--bad)">未盤到</span>`;
+  $('#daScanBox').classList.toggle('hide', !sc && S.round !== 2);
   $('#daUnscan').classList.toggle('hide', !sc);
+  $('#daUnscan').textContent = `取消${ROUND[S.round]}`;
   $('#daScanNow').classList.toggle('hide', !!sc);
-  if(sc){
-    $('#daScanInfo').innerHTML = `盤點時間：${esc(fmtTime(sc.t))}<br>盤點人：${esc(sc.by || '—')}　位置：${esc(sc.loc || '—')}　方式：${sc.method === 'manual' ? '手動' : '掃描'}`;
-    $('#daStatus').value = sc.status || '正常'; $('#daNote').value = sc.note || '';
-  }
+  $('#daScanNow').textContent = `標記為已${ROUND[S.round]}`;
+  $('#daScanInfo').innerHTML = S.round === 2
+    ? line(1, S.scans[id]) + '<br>' + line(2, S.scans2[id]) + `<br>比對：<b>${CMP_TEXT[compareOf(S.scans[id], S.scans2[id])]}</b>`
+    : sc ? line(1, sc) : '';
+  $('#daStatus').closest('label').classList.toggle('hide', !sc); $('#daNote').closest('label').classList.toggle('hide', !sc);
+  if(sc){ $('#daStatus').value = sc.status || '正常'; $('#daNote').value = sc.note || ''; }
   $('#dlgAsset').showModal();
 }
 $('#daSave').addEventListener('click', () => {
   const a = byId.get(daId); if(!a) return;
   a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim();
-  const sc = S.scans[daId];
+  const sc = SC()[daId];
   if(sc){
     const st = $('#daStatus').value, nt = $('#daNote').value.trim();
     if(st !== (sc.status || '正常') || nt !== (sc.note || '')) logEv('edit', daId, `狀況：${st}${nt ? '；備註：' + nt : ''}`);
@@ -829,9 +907,10 @@ $('#daSave').addEventListener('click', () => {
   save(); $('#dlgAsset').close(); render(); toast('已儲存');
 });
 $('#daUnscan').addEventListener('click', () => {
-  if(!confirm(`確定取消 ${daId} 的盤點紀錄？`)) return;
-  logEv('unscan', daId, `原盤點：${fmtTime(S.scans[daId].t)} ${S.scans[daId].by || ''}`);
-  delete S.scans[daId]; save(); $('#dlgAsset').close(); render(); toast('已取消盤點');
+  if(!confirm(`確定取消 ${daId} 的${ROUND[S.round]}紀錄？`)) return;
+  const sc = SC()[daId];
+  logEv('unscan', daId, `原${ROUND[S.round]}：${fmtTime(sc.t)} ${sc.by || ''}`);
+  delete SC()[daId]; save(); $('#dlgAsset').close(); render(); toast(`已取消${ROUND[S.round]}`);
 });
 $('#daScanNow').addEventListener('click', () => { if(!requireAuditor()) return; record(daId, 'manual'); $('#dlgAsset').close(); render(); });
 $('#daAffix').addEventListener('click', () => {
@@ -925,24 +1004,31 @@ function record(rawCode, method){
   if(!requireAuditor()) return 'noby';
   if(S.prefs.scanMode === 'affix') return affix(code, method);
   const by = S.prefs.by, loc = $('#scanLoc').value.trim();
-  const a = byId.get(id);
+  const a = byId.get(id), sc = SC();
   if(a){
-    if(S.scans[id]){
-      logEv('dup', id, `已於 ${fmtTime(S.scans[id].t)} 由 ${S.scans[id].by || '—'} 盤點`); save();
-      feedback('dup', a, S.scans[id]);
+    if(sc[id]){
+      logEv('dup', id, `已於 ${fmtTime(sc[id].t)} 由 ${sc[id].by || '—'} ${ROUND[S.round]}`); save();
+      feedback('dup', a, sc[id]);
       return 'dup';
     }
-    S.scans[id] = {t:new Date().toISOString(), by, loc, status:'正常', note:'', method};
+    // 複盤：同一筆財產不可由初盤人員再盤
+    const s1 = S.scans[id];
+    if(S.round === 2 && s1 && s1.by && s1.by === by){
+      logEv('sameBy', id, `初盤人員：${s1.by}`); save();
+      feedback('same', a, s1);
+      return 'same';
+    }
+    sc[id] = {t:new Date().toISOString(), by, loc, status:'正常', note:'', method};
     logEv(method === 'manual' ? 'manual' : 'scan', id, loc ? '位置：' + loc : '');
     if(loc && !a.loc) a.loc = loc;
     save();
     recentIds.unshift(id);
-    feedback(a.skip ? 'skip' : 'ok', a, S.scans[id]);
+    feedback(a.skip ? 'skip' : 'ok', a, sc[id]);
     return 'ok';
   }
-  // 不在清冊內：記錄為清冊外條碼（同一條碼只記一次）
-  if(!S.extras.some(x => x.code === code)){
-    S.extras.push({code, t:new Date().toISOString(), by, loc, note:''});
+  // 不在清冊內：記錄為清冊外條碼（同一階段、同一條碼只記一次）
+  if(!S.extras.some(x => x.code === code && exRound(x) === S.round)){
+    S.extras.push({code, t:new Date().toISOString(), by, loc, note:'', r:S.round});
   }
   logEv('extra', code, loc ? '位置：' + loc : ''); save();
   feedback('bad', null, null, code);
@@ -969,13 +1055,17 @@ function vibe(kind){
 }
 function feedback(kind, a, sc, code){
   const box = $('#scanResult');
-  const k = kind === 'skip' ? 'ok' : kind;
+  const k = kind === 'skip' ? 'ok' : kind === 'same' ? 'bad' : kind;
   beep(k); vibe(k);
-  if(kind === 'ok' || kind === 'skip'){
-    box.innerHTML = `<div class="result ok"><div class="small">✔ 盤點成功${kind === 'skip' ? '（此類別未納入盤點範圍）' : ''}</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div>
+  if(kind === 'same'){
+    box.innerHTML = `<div class="result bad"><div class="small">✖ 複盤人員不可與初盤人員相同，此筆未記錄</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small">此財產初盤由 <b>${esc(sc.by)}</b> 於 ${esc(fmtTime(sc.t))} 盤點，請改由其他人員複盤。</div></div>`;
+  } else if(kind === 'ok' || kind === 'skip'){
+    const s1 = S.round === 2 ? S.scans[a.id] : null;
+    box.innerHTML = `<div class="result ok"><div class="small">✔ ${ROUND[S.round]}成功${kind === 'skip' ? '（此類別未納入盤點範圍）' : ''}</div>`
+      + (S.round === 2 ? `<div class="small" style="color:${s1 ? 'inherit' : 'var(--bad)'}">${s1 ? `初盤：${esc(s1.by || '—')}（${esc(fmtTime(s1.t))}）` : '⚠ 此財產初盤未盤到（初複盤差異）'}</div>` : '') + `<div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div>
       <div class="row" style="margin-top:8px"><button class="btn sm" data-edit="${esc(a.id)}">記錄狀況／備註</button></div></div>`;
   } else if(kind === 'dup'){
-    box.innerHTML = `<div class="result dup"><div class="small">⚠ 已盤點過</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">於 ${esc(fmtTime(sc.t))} 由 ${esc(sc.by || '—')} 盤點</div></div>`;
+    box.innerHTML = `<div class="result dup"><div class="small">⚠ 本次${ROUND[S.round]}已盤點過</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">於 ${esc(fmtTime(sc.t))} 由 ${esc(sc.by || '—')} 盤點</div></div>`;
   } else {
     box.innerHTML = `<div class="result bad"><div class="small">✖ 不在財產清冊內，已記錄為「清冊外條碼」</div><div class="big" style="word-break:break-all">${esc(code)}</div></div>`;
   }
@@ -990,7 +1080,11 @@ function renderScan(){
   $('#modeBanner').classList.toggle('hide', !affixMode);
   $('#manualTitle').textContent = affixMode ? '手動確認標籤黏貼' : '手動輸入財產編號';
   $('#btnManual').textContent = affixMode ? '確認黏貼' : '盤點';
-  $('#recentTitle').textContent = affixMode ? '最近黏貼確認' : '最近盤點';
+  $('#recentTitle').textContent = affixMode ? '最近黏貼確認' : `最近${ROUND[S.round]}`;
+  $('#roundBanner').classList.toggle('hide', affixMode);
+  $('#roundBanner').innerHTML = S.round === 2
+    ? '目前階段：<b>複盤</b>　同一筆財產的複盤人員<b>不可</b>與初盤人員相同'
+    : '目前階段：<b>初盤</b>';
   $('#scanResult').innerHTML = '';
   $('#scanBy').value = S.prefs.by || '';
   updateAuditorUi();
@@ -1010,12 +1104,12 @@ function renderScanSide(){
     return;
   }
   const st = stats();
-  $('#sessionCount').textContent = `已盤 ${st.done} / ${st.total}`;
-  const latest = Object.entries(S.scans).sort((x,y) => y[1].t.localeCompare(x[1].t)).slice(0, 8);
+  $('#sessionCount').textContent = `${ROUND[S.round]}已盤 ${st.done} / ${st.total}`;
+  const latest = Object.entries(SC()).sort((x,y) => y[1].t.localeCompare(x[1].t)).slice(0, 8);
   $('#recentList').innerHTML = latest.length ? latest.map(([id, sc]) => {
     const a = byId.get(id) || {name:''};
     return `<div class="it" data-id="${esc(id)}"><span class="dot ok"></span><div class="m"><div class="id">${esc(id)}</div><div class="nm">${esc(a.name)}・${esc(fmtTime(sc.t))}</div></div></div>`;
-  }).join('') : '<div class="empty">尚無盤點紀錄</div>';
+  }).join('') : `<div class="empty">尚無${ROUND[S.round]}紀錄</div>`;
 }
 $('#modeSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b || b.dataset.m === S.prefs.scanMode) return;
@@ -1179,7 +1273,7 @@ function renderImportDialog(){
       `<br><span class="small muted">兩邊的差異明細會放在匯出 Excel 的「清冊差異」工作表。</span>`;
     $('#impAddCount').textContent = onlyFile.length;
   } else {
-    const keep = p.assets.filter(a => S.scans[a.id]).length;
+    const keep = p.assets.filter(a => S.scans[a.id] || S.scans2[a.id]).length;
     const removed = S.assets.filter(a => !p.assets.some(b => b.id === a.id)).length;
     const warn = S.assets.length && pending.coverage < 0.8
       ? `<div style="color:var(--bad);font-weight:600;margin:6px 0">⚠ 注意：此檔只包含目前清冊的 ${Math.round(pending.coverage * 100)}%，取代後會有 ${removed} 筆財產從清冊中移除。若只是要加入新增的財產，請改選上方「合併到目前清冊」。</div>` : '';
@@ -1255,8 +1349,8 @@ function applyReplace(){
   S.deptSource = pending.hasDeptCol ? pending.name : '';
   const ids = new Set(S.assets.map(a => a.id));
   // 原本在清冊內、新清冊已不存在的盤點紀錄，轉為清冊外條碼，避免遺失
-  for(const [id, sc] of Object.entries(S.scans)){
-    if(!ids.has(id)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'重新匯入後不在清冊內'}); delete S.scans[id]; }
+  for(const r of [1, 2]) for(const [id, sc] of Object.entries(SC(r))){
+    if(!ids.has(id)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'重新匯入後不在清冊內', r}); delete SC(r)[id]; }
   }
   if(!S.audit.name) S.audit.name = guessAuditName();
   if(!S.audit.startedAt) S.audit.startedAt = new Date().toISOString();
@@ -1293,24 +1387,41 @@ function plainDownload(blob, filename){
   const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
 }
-function assetRow(a, scans){
-  const sc = scans[a.id];
-  return {'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '取得日期':a.acqDate || '', '數量':a.qty || '', '部門代號':a.deptId || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '',
+function assetRow(a, c){
+  const base = {'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '取得日期':a.acqDate || '', '數量':a.qty || '', '部門代號':a.deptId || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || ''};
+  const sc = c.scans[a.id];
+  const how = s => s ? (s.method === 'manual' ? '手動輸入' : '掃描') : '';
+  if(!c._two) return {...base,
     '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點位置':sc ? sc.loc || '' : '',
-    '盤點方式':sc ? (sc.method === 'manual' ? '手動輸入' : '掃描') : '', '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
+    '盤點方式':how(sc), '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
+  const s2 = c.scans2[a.id], last = s2 || sc;
+  return {...base,
+    '初盤結果':sc ? '已盤點' : '未盤點', '初盤時間':sc ? fmtTime(sc.t) : '', '初盤人':sc ? sc.by || '' : '', '初盤方式':how(sc),
+    '複盤結果':s2 ? '已盤點' : '未盤點', '複盤時間':s2 ? fmtTime(s2.t) : '', '複盤人':s2 ? s2.by || '' : '', '複盤方式':how(s2),
+    '初複盤比對':CMP_TEXT[compareOf(sc, s2)], '盤點位置':last ? last.loc || '' : '', '實物狀況':last ? last.status || '' : '',
+    '盤點備註':[sc && sc.note && '初盤：' + sc.note, s2 && s2.note && '複盤：' + s2.note].filter(Boolean).join('；'), '清冊備註':a.note || ''};
 }
 const W = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,12,9,10,18,30];
+const W2R = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,9,9,16,9,9,20,14,10,24,30];
 function buildResultWb(c){
+  c = {...c, scans2:c.scans2 || {}};
+  c._two = c.round === 2 || Object.keys(c.scans2).length > 0;
   const scope = c.assets.filter(a => !a.skip);
-  const done = scope.filter(a => c.scans[a.id]).length;
+  const found = a => c.scans[a.id] || (c._two && c.scans2[a.id]);   // 兩階段時：任一次盤到即視為已盤到
+  const cmp = a => compareOf(c.scans[a.id], c.scans2[a.id]);
+  const done = scope.filter(found).length;
   const st = {total:scope.length, done, todo:scope.length - done, extra:c.extras.length};
+  const n = k => scope.filter(a => cmp(a) === k).length;
   const pct = (d, n) => n ? Math.round(d / n * 1000) / 10 + '%' : '';
   const wb = XLSX.utils.book_new();
   const info = [
     ['公司', c.company], ['盤點名稱', c.audit.name], ['盤點基準日', c.audit.date], ['盤點開始', fmtTime(c.audit.startedAt)],
     ['盤點結束', c.audit.closedAt ? fmtTime(c.audit.closedAt) : '（進行中）'], ['財產清冊來源', c.source],
-    ['匯出時間', fmtTime(new Date().toISOString())], [], ['應盤點筆數', st.total], ['已盤點', st.done], ['未盤點', st.todo],
-    ['盤點完成率', pct(st.done, st.total) || '—'], ['清冊外條碼', st.extra],
+    ['匯出時間', fmtTime(new Date().toISOString())], [], ['應盤點筆數', st.total],
+    ...(c._two ? [['初盤結束', fmtTime(c.audit.round1ClosedAt)], ['初盤已盤', scope.filter(a => c.scans[a.id]).length], ['複盤已盤', scope.filter(a => c.scans2[a.id]).length],
+      ['兩次相符', n('both')], ['差異：複盤未盤到', n('only1')], ['差異：初盤未盤到', n('only2')], ['異常：初複盤同一人', n('same')], ['兩次皆未盤到', n('none')]]
+      : [['已盤點', st.done], ['未盤點', st.todo], ['盤點完成率', pct(st.done, st.total) || '—'], ['盤點階段', '只有初盤（未進行複盤）']]),
+    ['清冊外條碼', st.extra],
     ['未納入盤點（無形資產等）', c.assets.filter(a => a.skip).length], ['盤點過程紀錄筆數', (c.log || []).length],
     ...(c.recon ? [[], ['清冊比對', `${c.recon.source} vs ${c.recon.base}`], [c.recon.mode === 'update' ? '僅在部門資料檔' : '僅在新清冊', c.recon.onlyInFile.length], [c.recon.mode === 'update' ? '僅在盤點清冊' : '僅在原清冊', (c.recon.notInFile || []).length]] : [])
   ];
@@ -1318,24 +1429,36 @@ function buildResultWb(c){
   XLSX.utils.book_append_sheet(wb, wsInfo, '摘要');
   const grp = key => {
     const m = new Map();
-    for(const a of scope){ const g = key === 'dept' ? deptOf(a) : catOf(a); const r = m.get(g) || {g, total:0, done:0}; r.total++; if(c.scans[a.id]) r.done++; m.set(g, r); }
-    const rows = [...m.values()].sort((x,y) => (x.g === UNSET) - (y.g === UNSET) || x.g.localeCompare(y.g, 'zh-Hant'))
-      .map(r => ({[key === 'dept' ? '部門' : '資產類別']:r.g, '應盤點':r.total, '已盤點':r.done, '未盤點':r.total - r.done, '完成率':pct(r.done, r.total)}));
-    rows.push({[key === 'dept' ? '部門' : '資產類別']:'合計', '應盤點':st.total, '已盤點':st.done, '未盤點':st.todo, '完成率':pct(st.done, st.total)});
-    return rows;
+    const K = key === 'dept' ? '部門' : '資產類別';
+    for(const a of scope){
+      const g = key === 'dept' ? deptOf(a) : catOf(a); const r = m.get(g) || {g, total:0, done:0, d1:0, d2:0, both:0, diff:0, none:0};
+      r.total++; if(found(a)) r.done++; if(c.scans[a.id]) r.d1++; if(c.scans2[a.id]) r.d2++;
+      const k = cmp(a); if(k === 'both') r.both++; else if(k === 'none') r.none++; else r.diff++;
+      m.set(g, r);
+    }
+    const list = [...m.values()].sort((x,y) => (x.g === UNSET) - (y.g === UNSET) || x.g.localeCompare(y.g, 'zh-Hant'));
+    const tot = list.reduce((s, r) => { for(const k of ['total','done','d1','d2','both','diff','none']) s[k] += r[k]; return s; }, {g:'合計', total:0, done:0, d1:0, d2:0, both:0, diff:0, none:0});
+    return list.concat([tot]).map(r => c._two
+      ? {[K]:r.g, '應盤點':r.total, '初盤已盤':r.d1, '複盤已盤':r.d2, '兩次相符':r.both, '初複盤差異':r.diff, '兩次皆未盤到':r.none, '複盤完成率':pct(r.d2, r.total)}
+      : {[K]:r.g, '應盤點':r.total, '已盤點':r.done, '未盤點':r.total - r.done, '完成率':pct(r.done, r.total)});
   };
-  XLSX.utils.book_append_sheet(wb, sheet(grp('dept'), [20,10,10,10,10]), '部門統計');
-  XLSX.utils.book_append_sheet(wb, sheet(grp('cat'), [24,10,10,10,10]), '類別統計');
-  const row = a => assetRow(a, c.scans);
-  XLSX.utils.book_append_sheet(wb, sheet(scope.map(row), W), '盤點明細');
-  XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => c.scans[a.id]).map(row), W), '已盤點');
-  XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => !c.scans[a.id]).map(row), W), '未盤點');
-  XLSX.utils.book_append_sheet(wb, sheet(c.extras.length ? c.extras.map(x => ({'條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '位置':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [22,16,10,14,30]), '清冊外條碼');
+  const GW = c._two ? [20,8,9,9,9,10,11,10] : [20,10,10,10,10];
+  XLSX.utils.book_append_sheet(wb, sheet(grp('dept'), GW), '部門統計');
+  XLSX.utils.book_append_sheet(wb, sheet(grp('cat'), [24, ...GW.slice(1)]), '類別統計');
+  const row = a => assetRow(a, c), WW = c._two ? W2R : W;
+  XLSX.utils.book_append_sheet(wb, sheet(scope.map(row), WW), '盤點明細');
+  if(c._two){
+    const d = scope.filter(a => !['both', 'none'].includes(cmp(a)));
+    XLSX.utils.book_append_sheet(wb, sheet(d.length ? d.map(row) : [{'財產編號':'（初複盤無差異）'}], WW), '初複盤差異');
+  }
+  XLSX.utils.book_append_sheet(wb, sheet(scope.filter(found).map(row), WW), '已盤點');
+  XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => !found(a)).map(row), WW), c._two ? '兩次皆未盤到' : '未盤點');
+  XLSX.utils.book_append_sheet(wb, sheet(c.extras.length ? c.extras.map(x => ({'階段':ROUND[exRound(x)], '條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '位置':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [6,22,16,10,14,30]), '清冊外條碼');
   // 盤點過程：每一次掃描、重複、清冊外、取消、修改等動作
   const names = new Map(c.assets.map(a => [a.id, a.name]));
-  const logRows = (c.log || []).slice().sort((x,y) => x.t.localeCompare(y.t)).map(e => ({'時間':fmtTime(e.t) + ':' + pad(new Date(e.t).getSeconds()), '人員':e.by, '動作':ACT[e.type] || e.type,
+  const logRows = (c.log || []).slice().sort((x,y) => x.t.localeCompare(y.t)).map(e => ({'時間':fmtTime(e.t) + ':' + pad(new Date(e.t).getSeconds()), '階段':ROUND[e.r || 1], '人員':e.by, '動作':ACT[e.type] || e.type,
     '財產編號／條碼':e.id, '財產名稱':names.get(e.id) || '', '說明':e.info}));
-  XLSX.utils.book_append_sheet(wb, sheet(logRows.length ? logRows : [{'時間':'（無紀錄）'}], [20,10,14,18,28,40]), '盤點過程');
+  XLSX.utils.book_append_sheet(wb, sheet(logRows.length ? logRows : [{'時間':'（無紀錄）'}], [20,6,10,22,18,28,40]), '盤點過程');
   if(c.recon){
     const r = c.recon, lab = r.mode === 'update' ? ['僅在部門資料檔', '僅在盤點清冊'] : ['僅在新清冊', '僅在原清冊'];
     const drow = (type, src, a) => ({'差異類型':type, '來源檔案':src, '財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '數量':a.qty || '', '部門':a.dept || '', '保管人':a.keeper || '',
@@ -1364,7 +1487,7 @@ $('#btnExportMaster').addEventListener('click', () => {
 
 /* ---------- 備份與合併 ---------- */
 $('#btnBackup').addEventListener('click', () => {
-  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, scans:S.scans, extras:S.extras, labels:S.labels, log:S.log,
+  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, round:S.round, scans:S.scans, scans2:S.scans2, extras:S.extras, labels:S.labels, log:S.log,
     assets:S.assets.map(a => ({id:a.id, dept:a.dept, keeper:a.keeper, loc:a.loc}))};
   const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
   const name = `盤點紀錄備份_${S.prefs.by ? S.prefs.by + '_' : ''}${stamp()}.json`;
@@ -1379,12 +1502,14 @@ $('#mergeFile').addEventListener('change', async e => {
     const d = JSON.parse(await f.text());
     if(d.app !== 'asset-inventory') throw new Error('不是本 App 的備份檔');
     let add = 0, ex = 0, dept = 0;
-    for(const [id, sc] of Object.entries(d.scans || {})){
-      const cur = S.scans[id];
-      if(!cur){ if(byId.has(id)){ S.scans[id] = sc; add++; } else if(!S.extras.some(x => x.code === id)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'合併時不在清冊內'}); ex++; } }
-      else if(sc.t < cur.t) S.scans[id] = {...sc, status:cur.status !== '正常' ? cur.status : sc.status, note:cur.note || sc.note}; // 保留最早盤點時間
+    let add2 = 0;
+    for(const r of [1, 2]) for(const [id, sc] of Object.entries((r === 2 ? d.scans2 : d.scans) || {})){
+      const map = SC(r), cur = map[id];
+      if(!cur){ if(byId.has(id)){ map[id] = sc; r === 2 ? add2++ : add++; } else if(!S.extras.some(x => x.code === id && exRound(x) === r)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'合併時不在清冊內', r}); ex++; } }
+      else if(sc.t < cur.t) map[id] = {...sc, status:cur.status !== '正常' ? cur.status : sc.status, note:cur.note || sc.note}; // 保留最早盤點時間
     }
-    for(const x of d.extras || []) if(!S.extras.some(y => y.code === x.code)){ S.extras.push(x); ex++; }
+    for(const x of d.extras || []) if(!S.extras.some(y => y.code === x.code && exRound(y) === exRound(x))){ S.extras.push(x); ex++; }
+    if(d.round === 2 && S.round === 1 && add2) toast('備份檔含複盤紀錄，但本機仍在初盤階段');
     let lab = 0;
     for(const [id, l] of Object.entries(d.labels || {})){
       if(!byId.has(id)) continue;
@@ -1397,10 +1522,12 @@ $('#mergeFile').addEventListener('change', async e => {
     const keys = new Set(S.log.map(e => e.k)); let ev = 0;
     for(const e of d.log || []) if(e && e.k && !keys.has(e.k)){ S.log.push(e); keys.add(e.k); ev++; }
     S.log.sort((x,y) => x.t.localeCompare(y.t));
-    logEv('merge', '', `${f.name}：新增盤點 ${add} 筆、清冊外 ${ex} 筆、過程紀錄 ${ev} 筆`);
+    logEv('merge', '', `${f.name}：新增初盤 ${add} 筆、複盤 ${add2} 筆、清冊外 ${ex} 筆、過程紀錄 ${ev} 筆`);
     for(const a of d.assets || []){ const o = byId.get(a.id); if(o && !o.dept && a.dept){ o.dept = a.dept; dept++; } if(o && !o.keeper && a.keeper) o.keeper = a.keeper; if(o && !o.loc && a.loc) o.loc = a.loc; }
     save(true); render();
-    alert(`合併完成：新增 ${add} 筆盤點紀錄、${ex} 筆清冊外條碼、${lab} 筆標籤黏貼確認，補上 ${dept} 筆部門資料。`);
+    const same = inScope().filter(a => compareOf(S.scans[a.id], S.scans2[a.id]) === 'same').length;
+    alert(`合併完成：新增初盤 ${add} 筆、複盤 ${add2} 筆、清冊外條碼 ${ex} 筆、標籤黏貼確認 ${lab} 筆，補上 ${dept} 筆部門資料。` +
+      (same ? `\n\n⚠ 有 ${same} 筆財產的初盤與複盤為同一人，請在「清單 → 初複盤差異」確認並重新複盤。` : ''));
   }catch(err){ alert('合併失敗：' + err.message); }
 });
 
@@ -1408,12 +1535,14 @@ async function closeAudit(){
   if(!S.assets.length) return toast('尚未匯入財產清冊');
   if(!requireAuditor()) return;
   const st = stats();
-  if(!confirm(`結束「${S.audit.name || '本期盤點'}」並存檔？\n\n已盤 ${st.done}／應盤 ${st.total}，未盤 ${st.todo}，清冊外 ${st.extra}。\n盤點過程與結果會存入「歷次盤點紀錄」，接著清空盤點紀錄開始新一期（財產清冊、部門與標籤紀錄保留）。`)) return;
-  logEv('close', '', `已盤 ${st.done}／應盤 ${st.total}`);
+  if(S.round === 1 && !confirm('本期尚未進行「複盤」。\n一次完整的盤點應包含初盤與複盤，確定只以初盤結果結束本期？')) return;
+  const sumText = S.round === 2 ? `初盤 ${st.done1}、複盤 ${st.done2}／應盤 ${st.total}，初複盤差異 ${st.diff}` : `初盤 ${st.done1}／應盤 ${st.total}`;
+  if(!confirm(`結束「${S.audit.name || '本期盤點'}」並存檔？\n\n${sumText}。\n盤點過程與結果會存入「歷次盤點紀錄」，接著清空盤點紀錄開始新一期（財產清冊、部門與標籤紀錄保留）。`)) return;
+  logEv('close', '', sumText);
   const rec = snapshot('close');
   try{ await idb.put(rec); }
   catch(e){ S.log.pop(); save(true); return alert('存檔失敗，盤點資料未清除：' + (e && e.message || e)); }
-  S.scans = {}; S.extras = []; S.log = [];
+  S.scans = {}; S.scans2 = {}; S.round = 1; S.extras = []; S.log = [];
   S.audit = {name:guessAuditName(), date:'', startedAt:new Date().toISOString()};
   logEv('start', '', `接續「${rec.audit.name}」`);
   save(true); render(); toast('已存檔，開始新一期盤點'); openAudit();
@@ -1421,7 +1550,7 @@ async function closeAudit(){
 async function checkpoint(){
   if(!S.assets.length) return toast('尚未匯入財產清冊');
   if(!requireAuditor()) return;
-  logEv('checkpoint', '', `已盤 ${stats().done}／應盤 ${stats().total}`);
+  logEv('checkpoint', '', `${ROUND[S.round]}中：初盤 ${stats().done1}、複盤 ${stats().done2}／應盤 ${stats().total}`);
   try{ await idb.put(snapshot('checkpoint')); save(true); render(); toast('已存檔目前進度'); }
   catch(e){ S.log.pop(); alert('存檔失敗：' + (e && e.message || e)); }
 }
@@ -1444,7 +1573,7 @@ function renderRecords(){
   const color = {ok:'var(--ok)', dup:'var(--warn)', extra:'var(--warn)', change:'var(--bad)'};
   $('#logList').innerHTML = rows.slice(0, logState.limit).map(e => {
     const a = byId.get(e.id), g = ACT_GROUP[e.type] || 'other';
-    return `<div class="it" ${a ? `data-id="${esc(e.id)}"` : ''}><div class="m"><div><b style="color:${color[g] || 'var(--ink)'}">${esc(ACT[e.type] || e.type)}</b> <span class="small muted">${esc(fmtTime(e.t))}・${esc(e.by || '—')}</span></div>` +
+    return `<div class="it" ${a ? `data-id="${esc(e.id)}"` : ''}><div class="m"><div><span class="pill">${ROUND[e.r || 1]}</span> <b style="color:${color[g] || 'var(--ink)'}">${esc(ACT[e.type] || e.type)}</b> <span class="small muted">${esc(fmtTime(e.t))}・${esc(e.by || '—')}</span></div>` +
       `<div class="nm">${esc(e.id)}${a ? '　' + esc(a.name) : ''}${e.info ? '　' + esc(e.info) : ''}</div></div></div>`;
   }).join('') || '<div class="empty">尚無紀錄</div>';
   $('#logMoreWrap').classList.toggle('hide', rows.length <= logState.limit);
@@ -1458,7 +1587,9 @@ async function renderHistory(){
     const s = r.summary, p = s.total ? Math.round(s.done / s.total * 1000) / 10 : 0;
     return `<div class="it" data-h="${esc(r.id)}"><div class="m"><div class="id">${esc(r.audit.name || '（未命名盤點）')} <span class="pill ${r.kind === 'close' ? 'ok' : ''}">${r.kind === 'close' ? '已結束' : '期中存檔'}</span></div>` +
       `<div class="nm">${esc(fmtTime(r.audit.startedAt))} ～ ${esc(fmtTime(r.savedAt))}・存檔人 ${esc(r.savedBy || '—')}</div>` +
-      `<div class="nm">已盤 ${s.done}／${s.total}（${p}%）・未盤 ${s.todo}・清冊外 ${s.extra}・過程 ${(r.log || []).length} 筆</div></div></div>`;
+      (s.round === 2
+        ? `<div class="nm">初盤 ${s.done1}・複盤 ${s.done2}／${s.total}・初複盤差異 ${s.diff}・過程 ${(r.log || []).length} 筆</div></div></div>`
+        : `<div class="nm">${s.done1 != null ? '初盤' : '已盤'} ${s.done}／${s.total}（${p}%）・未盤 ${s.todo}・清冊外 ${s.extra}・過程 ${(r.log || []).length} 筆${s.done1 != null ? '・未複盤' : ''}</div></div></div>`);
   }).join('') : '<div class="empty">尚無歷次盤點紀錄</div>';
 }
 $('#logType').addEventListener('change', e => { logState.type = e.target.value; logState.limit = 150; renderRecords(); });
@@ -1472,9 +1603,13 @@ $('#histList').addEventListener('click', async e => {
   const r = curHist, s = r.summary;
   $('#dhTitle').textContent = r.audit.name || '（未命名盤點）';
   $('#dhBody').innerHTML = `<div class="small">類型：${r.kind === 'close' ? '盤點結束存檔' : '期中存檔'}<br>盤點期間：${esc(fmtTime(r.audit.startedAt))} ～ ${esc(fmtTime(r.savedAt))}<br>基準日：${esc(r.audit.date || '—')}　存檔人：${esc(r.savedBy || '—')}<br>清冊來源：${esc(r.source || '—')}</div>` +
-    `<div class="kpis" style="margin-top:10px"><div class="kpi"><b>${s.total}</b><span>應盤點</span></div><div class="kpi ok"><b>${s.done}</b><span>已盤點</span></div><div class="kpi bad"><b>${s.todo}</b><span>未盤點</span></div><div class="kpi warn"><b>${s.extra}</b><span>清冊外</span></div></div>` +
-    `<table class="t"><thead><tr><th>部門</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th></tr></thead><tbody>` +
-    s.depts.map(d => `<tr><td>${esc(d.g)}</td><td class="n">${d.total}</td><td class="n">${d.done}</td><td class="n">${d.total - d.done}</td></tr>`).join('') + '</tbody></table>' +
+    (s.round === 2
+      ? `<div class="kpis" style="margin-top:10px"><div class="kpi"><b>${s.total}</b><span>應盤點</span></div><div class="kpi"><b>${s.done1}</b><span>初盤盤到</span></div><div class="kpi ok"><b>${s.done2}</b><span>複盤盤到</span></div><div class="kpi bad"><b>${s.diff}</b><span>初複盤差異</span></div></div>` +
+        `<table class="t"><thead><tr><th>部門</th><th class="n">應盤</th><th class="n">初盤</th><th class="n">複盤</th><th class="n">差異</th></tr></thead><tbody>` +
+        s.depts.map(d => `<tr><td>${esc(d.g)}</td><td class="n">${d.total}</td><td class="n">${d.d1}</td><td class="n">${d.d2}</td><td class="n">${d.diff}</td></tr>`).join('') + '</tbody></table>'
+      : `<div class="kpis" style="margin-top:10px"><div class="kpi"><b>${s.total}</b><span>應盤點</span></div><div class="kpi ok"><b>${s.done}</b><span>已盤點</span></div><div class="kpi bad"><b>${s.todo}</b><span>未盤點</span></div><div class="kpi warn"><b>${s.extra}</b><span>清冊外</span></div></div>` +
+        `<table class="t"><thead><tr><th>部門</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th></tr></thead><tbody>` +
+        s.depts.map(d => `<tr><td>${esc(d.g)}</td><td class="n">${d.total}</td><td class="n">${d.done}</td><td class="n">${d.total - d.done}</td></tr>`).join('') + '</tbody></table>') +
     `<p class="small muted">匯出的 Excel 含盤點明細、已盤／未盤、清冊外條碼、部門與類別統計，以及完整的「盤點過程」。</p>`;
   $('#dlgHist').showModal();
 });
@@ -1490,7 +1625,7 @@ $('#btnWipe').addEventListener('click', () => {
 });
 function renderSettings(){
   let size = 0; try{ size = (localStorage.getItem(KEY) || '').length; }catch(e){}
-  $('#storageInfo').textContent = S.assets.length ? `目前資料：財產 ${S.assets.length} 筆（納入盤點 ${inScope().length} 筆）、盤點紀錄 ${Object.keys(S.scans).length} 筆、約 ${Math.round(size / 1024)} KB。` : '';
+  $('#storageInfo').textContent = S.assets.length ? `目前資料：財產 ${S.assets.length} 筆（納入盤點 ${inScope().length} 筆）、初盤 ${Object.keys(S.scans).length} 筆、複盤 ${Object.keys(S.scans2).length} 筆、約 ${Math.round(size / 1024)} KB。` : '';
 }
 
 /* ======================= 標籤 ======================= */
