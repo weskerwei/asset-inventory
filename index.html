@@ -128,6 +128,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 <body>
 <header class="top">
   <h1 id="hdrTitle">雲象科技財產盤點</h1>
+  <small id="cloudDot"></small>
   <small id="hdrSub"></small>
 </header>
 
@@ -138,6 +139,11 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <h2>開始使用</h2>
     <p class="muted">尚未匯入財產清冊。請到「設定」匯入財產目錄清冊 Excel（可直接匯入會計系統產出的「財產目錄清冊」）。</p>
     <button class="btn pri" data-go="settings">前往匯入</button>
+  </div>
+  <div id="cloudBanner" class="card hide" style="border-color:var(--pri)">
+    <h2>請先登入</h2>
+    <p class="small muted" style="margin-top:-4px">財產清冊與盤點結果已改為全公司共用，請用公司 Google 帳號登入後即可取得最新資料，不需要再自己匯入。</p>
+    <button class="btn pri" id="btnCloudLogin2">以公司 Google 帳號登入</button>
   </div>
   <div id="homeBody">
     <div class="card">
@@ -368,6 +374,15 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 
 <!-- ============ 設定 ============ -->
 <section class="view" id="v-settings">
+  <div class="card hide" id="cloudCard">
+    <h2>雲端同步</h2>
+    <div class="small" id="cloudStatus"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn pri grow hide" id="btnCloudLogin">以公司 Google 帳號登入</button>
+      <button class="btn grow hide" id="btnCloudLogout">登出</button>
+    </div>
+    <p class="small muted" style="margin:8px 0 0">登入後，財產清冊、初盤／複盤結果、清冊外條碼、標籤紀錄及盤點過程都會即時與所有人同步。只要一個人匯入清冊，其他人就會自動取得。沒有網路時仍可盤點，恢復連線後會自動上傳。</p>
+  </div>
   <div class="card">
     <h2>匯入財產清冊</h2>
     <div class="drop" id="drop">
@@ -516,10 +531,15 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 <script src="vendor/qrcode.js"></script>
 <script src="vendor/JsBarcode.all.min.js"></script>
 <script src="vendor/html5-qrcode.min.js"></script>
+<script src="vendor/firebase-app-compat.js"></script>
+<script src="vendor/firebase-auth-compat.js"></script>
+<script src="vendor/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
+let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
 const NO_AUDIT_CATS = /電腦軟體|專利權|專門技術|商標|著作權|商譽|租賃改良|無形/;
@@ -596,7 +616,9 @@ const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', ext
   delExtra:'刪除清冊外條碼', sameBy:'複盤人員與初盤相同（未記錄）', round2:'結束初盤、開始複盤', round1back:'退回初盤', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
 const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
 function logEv(type, id, info){
-  S.log.push({k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', r:S.round, type, id:id || '', info:info || ''});
+  const ev = {k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', r:S.round, type, id:id || '', info:info || ''};
+  S.log.push(ev);
+  if(CLOUD) CLOUD.log(ev);
 }
 
 // 歷次盤點紀錄存在 IndexedDB（容量比 localStorage 大很多，可保存多年的紀錄）
@@ -673,11 +695,13 @@ function markPrinted(ids){
     if(!l.printedAt) l.printedAt = now;
     l.lastPrintedAt = now; l.printCount = (l.printCount || 0) + 1;
   }
+  if(CLOUD) CLOUD.labelsPrinted(ids);
   save(true);
 }
 function markAffixed(id, method){
   const l = S.labels[id] || (S.labels[id] = {printCount:0});
   l.affixedAt = new Date().toISOString(); l.affixedBy = S.prefs.by; l.affixMethod = method;
+  if(CLOUD) CLOUD.labelAffix(id, l);
 }
 
 /* ======================= 初盤／複盤 ======================= */
@@ -776,7 +800,9 @@ $('#btnNextRound').addEventListener('click', () => S.round === 2 ? closeAudit() 
 $('#btnRoundBack').addEventListener('click', () => {
   if(Object.keys(S.scans2).length) return toast('已有複盤紀錄，無法退回初盤');
   if(!confirm('退回初盤階段？（尚無任何複盤紀錄）')) return;
-  S.round = 1; delete S.audit.round1ClosedAt; logEv('round1back', '', ''); save(true); render();
+  S.round = 1; delete S.audit.round1ClosedAt; logEv('round1back', '', '');
+  if(CLOUD) CLOUD.putAudit({round:1, round1ClosedAt:null});
+  save(true); render();
 });
 function startRound2(){
   if(!S.assets.length) return toast('尚未匯入財產清冊');
@@ -785,6 +811,7 @@ function startRound2(){
   if(!confirm(`結束初盤並開始複盤？\n\n初盤已盤 ${st.done}／應盤 ${st.total}，未盤 ${st.todo}。\n\n・結束後不能再新增初盤紀錄\n・複盤時，同一筆財產必須由「不同於初盤」的人員盤點`)) return;
   logEv('round2', '', `初盤已盤 ${st.done}／應盤 ${st.total}`);
   S.round = 2; S.audit.round1ClosedAt = new Date().toISOString();
+  if(CLOUD) CLOUD.putAudit({round:2, round1ClosedAt:S.audit.round1ClosedAt});
   save(true); render(); toast('已進入複盤階段');
 }
 $('#statSeg').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; S.prefs.statG = b.dataset.g; save(); render(); });
@@ -897,12 +924,15 @@ function openAsset(id){
 }
 $('#daSave').addEventListener('click', () => {
   const a = byId.get(daId); if(!a) return;
+  const before = [a.dept, a.keeper, a.loc].join('|');
   a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim();
+  if(CLOUD && before !== [a.dept, a.keeper, a.loc].join('|')) CLOUD.uploadAssetsSoon();
   const sc = SC()[daId];
   if(sc){
     const st = $('#daStatus').value, nt = $('#daNote').value.trim();
     if(st !== (sc.status || '正常') || nt !== (sc.note || '')) logEv('edit', daId, `狀況：${st}${nt ? '；備註：' + nt : ''}`);
     sc.status = st; sc.note = nt;
+    if(CLOUD) CLOUD.putScan(S.round, daId, sc);
   }
   save(); $('#dlgAsset').close(); render(); toast('已儲存');
 });
@@ -910,7 +940,7 @@ $('#daUnscan').addEventListener('click', () => {
   if(!confirm(`確定取消 ${daId} 的${ROUND[S.round]}紀錄？`)) return;
   const sc = SC()[daId];
   logEv('unscan', daId, `原${ROUND[S.round]}：${fmtTime(sc.t)} ${sc.by || ''}`);
-  delete SC()[daId]; save(); $('#dlgAsset').close(); render(); toast(`已取消${ROUND[S.round]}`);
+  delete SC()[daId]; if(CLOUD) CLOUD.delScan(S.round, daId); save(); $('#dlgAsset').close(); render(); toast(`已取消${ROUND[S.round]}`);
 });
 $('#daScanNow').addEventListener('click', () => { if(!requireAuditor()) return; record(daId, 'manual'); $('#dlgAsset').close(); render(); });
 $('#daAffix').addEventListener('click', () => {
@@ -918,6 +948,7 @@ $('#daAffix').addEventListener('click', () => {
   if(L && L.affixedAt){
     if(!confirm(`確定取消 ${daId} 的黏貼確認？`)) return;
     delete L.affixedAt; delete L.affixedBy; delete L.affixMethod;
+    if(CLOUD) CLOUD.unaffix(daId);
   } else {
     if(!requireAuditor()) return;
     markAffixed(daId, 'manual');
@@ -933,8 +964,8 @@ function openExtra(i){
   $('#exNote').value = x.note || '';
   $('#dlgExtra').showModal();
 }
-$('#exSave').addEventListener('click', () => { S.extras[exIdx].note = $('#exNote').value.trim(); save(); $('#dlgExtra').close(); render(); });
-$('#exDel').addEventListener('click', () => { if(!confirm('確定刪除這筆清冊外條碼？')) return; logEv('delExtra', S.extras[exIdx].code, S.extras[exIdx].note || ''); S.extras.splice(exIdx,1); save(); $('#dlgExtra').close(); render(); });
+$('#exSave').addEventListener('click', () => { S.extras[exIdx].note = $('#exNote').value.trim(); if(CLOUD) CLOUD.putExtra(S.extras[exIdx]); save(); $('#dlgExtra').close(); render(); });
+$('#exDel').addEventListener('click', () => { if(!confirm('確定刪除這筆清冊外條碼？')) return; logEv('delExtra', S.extras[exIdx].code, S.extras[exIdx].note || ''); if(CLOUD) CLOUD.delExtra(S.extras[exIdx]); S.extras.splice(exIdx,1); save(); $('#dlgExtra').close(); render(); });
 
 $('#btnBulkDept').addEventListener('click', () => {
   const n = filtered().length;
@@ -947,6 +978,7 @@ $('#btnBulkDept').addEventListener('click', () => {
 $('#bulkOk').addEventListener('click', () => {
   const d = $('#bulkDept').value.trim();
   const rows = filtered(); rows.forEach(a => a.dept = d);
+  if(CLOUD) CLOUD.uploadAssetsSoon();
   save(); $('#dlgBulk').close(); listState.dept = d || (listState.dept ? UNSET : ''); render(); toast(`已更新 ${rows.length} 筆`);
 });
 
@@ -960,13 +992,21 @@ $('#btnEditAudit2').addEventListener('click', openAudit);
 $('#auOk').addEventListener('click', () => {
   S.audit.name = $('#auName').value.trim(); S.audit.date = $('#auDate').value.trim(); S.company = $('#auCompany').value.trim();
   logEv('audit', '', `名稱：${S.audit.name}；基準日：${S.audit.date || '—'}`);
+  if(CLOUD){ CLOUD.putAudit({name:S.audit.name, date:S.audit.date}); CLOUD.putMeta({company:S.company}); }
   save(); $('#dlgAudit').close(); render();
 });
 
 /* ======================= 盤點紀錄 ======================= */
 const recentIds = [];
 // 盤點人為必填：未填寫時不允許任何盤點動作，並引導到「掃描」頁輸入
+function requireCloud(){
+  if(!window.FIREBASE_CONFIG || (CLOUD && CLOUD.ready)) return true;
+  if(document.querySelector('dialog[open]')) document.querySelector('dialog[open]').close();
+  go('settings'); toast(CLOUD ? '正在連線雲端，請稍候' : '請先以公司 Google 帳號登入');
+  return false;
+}
 function requireAuditor(){
+  if(!requireCloud()) return false;
   if(S.prefs.by) return true;
   if($('#dlgAsset').open) $('#dlgAsset').close();
   if(curView !== 'scan') go('scan');
@@ -1013,12 +1053,13 @@ function record(rawCode, method){
     }
     // 複盤：同一筆財產不可由初盤人員再盤
     const s1 = S.scans[id];
-    if(S.round === 2 && s1 && s1.by && s1.by === by){
+    if(S.round === 2 && s1 && ((s1.by && s1.by === by) || (CLOUD && s1.email && s1.email === CLOUD.email))){
       logEv('sameBy', id, `初盤人員：${s1.by}`); save();
       feedback('same', a, s1);
       return 'same';
     }
-    sc[id] = {t:new Date().toISOString(), by, loc, status:'正常', note:'', method};
+    sc[id] = {t:new Date().toISOString(), by, email:CLOUD ? CLOUD.email : '', loc, status:'正常', note:'', method};
+    if(CLOUD) CLOUD.putScan(S.round, id, sc[id]);
     logEv(method === 'manual' ? 'manual' : 'scan', id, loc ? '位置：' + loc : '');
     if(loc && !a.loc) a.loc = loc;
     save();
@@ -1028,7 +1069,9 @@ function record(rawCode, method){
   }
   // 不在清冊內：記錄為清冊外條碼（同一階段、同一條碼只記一次）
   if(!S.extras.some(x => x.code === code && exRound(x) === S.round)){
-    S.extras.push({code, t:new Date().toISOString(), by, loc, note:'', r:S.round});
+    const x = {code, t:new Date().toISOString(), by, email:CLOUD ? CLOUD.email : '', loc, note:'', r:S.round};
+    S.extras.push(x);
+    if(CLOUD) CLOUD.putExtra(x);
   }
   logEv('extra', code, loc ? '位置：' + loc : ''); save();
   feedback('bad', null, null, code);
@@ -1236,6 +1279,7 @@ function parseWorkbook(wb){
 let pending = null;
 async function handleFile(f){
   if(!f) return;
+  if(!requireCloud()) return;
   try{
     const buf = await f.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array', cellDates:false});
@@ -1326,6 +1370,7 @@ function applyDeptUpdate(){
   const filledText = Object.entries(filled).map(([k, v]) => `${FIELD_NAMES[k]} ${v} 筆`).join('、');
   logEv('import', '', `${p.name}（合併：比對成功 ${n} 筆${add ? `、新增 ${onlyFile.length} 筆` : ''}${filledText ? `、補上 ${filledText}` : ''}）`);
   reindex(); save(true);
+  if(CLOUD) CLOUD.uploadAssets().then(() => toast('已更新全公司共用的財產清冊')).catch(e => alert('上傳雲端失敗：' + e.message));
   toast(`已合併 ${n} 筆${add ? `，新增 ${onlyFile.length} 筆財產` : ''}${filledText ? `，補上 ${filledText}` : ''}`);
 }
 function applyReplace(){
@@ -1349,13 +1394,14 @@ function applyReplace(){
   S.deptSource = pending.hasDeptCol ? pending.name : '';
   const ids = new Set(S.assets.map(a => a.id));
   // 原本在清冊內、新清冊已不存在的盤點紀錄，轉為清冊外條碼，避免遺失
-  for(const r of [1, 2]) for(const [id, sc] of Object.entries(SC(r))){
+  if(!CLOUD) for(const r of [1, 2]) for(const [id, sc] of Object.entries(SC(r))){
     if(!ids.has(id)){ S.extras.push({code:id, t:sc.t, by:sc.by, loc:sc.loc, note:'重新匯入後不在清冊內', r}); delete SC(r)[id]; }
   }
   if(!S.audit.name) S.audit.name = guessAuditName();
   if(!S.audit.startedAt) S.audit.startedAt = new Date().toISOString();
   logEv('import', '', `${pending.name}（取代清冊，共 ${S.assets.length} 筆）`);
   reindex(); save(true);
+  if(CLOUD) CLOUD.uploadAssets().then(() => toast('已更新全公司共用的財產清冊')).catch(e => alert('上傳雲端失敗：' + e.message));
   toast(`已匯入 ${S.assets.length} 筆財產`);
 }
 function guessAuditName(){ const y = new Date().getFullYear() - 1911; return `${y}年度財產盤點`; }
@@ -1501,6 +1547,7 @@ $('#mergeFile').addEventListener('change', async e => {
   try{
     const d = JSON.parse(await f.text());
     if(d.app !== 'asset-inventory') throw new Error('不是本 App 的備份檔');
+    if(CLOUD) throw new Error('目前為雲端同步模式，所有人的盤點結果已自動彙整，不需要再合併備份檔');
     let add = 0, ex = 0, dept = 0;
     let add2 = 0;
     for(const r of [1, 2]) for(const [id, sc] of Object.entries((r === 2 ? d.scans2 : d.scans) || {})){
@@ -1540,10 +1587,13 @@ async function closeAudit(){
   if(!confirm(`結束「${S.audit.name || '本期盤點'}」並存檔？\n\n${sumText}。\n盤點過程與結果會存入「歷次盤點紀錄」，接著清空盤點紀錄開始新一期（財產清冊、部門與標籤紀錄保留）。`)) return;
   logEv('close', '', sumText);
   const rec = snapshot('close');
-  try{ await idb.put(rec); }
-  catch(e){ S.log.pop(); save(true); return alert('存檔失敗，盤點資料未清除：' + (e && e.message || e)); }
+  const next = {name:guessAuditName(), date:'', startedAt:new Date().toISOString()};
+  try{
+    await idb.put(rec);
+    if(CLOUD) await CLOUD.closeAudit(rec.summary, next);
+  }catch(e){ S.log.pop(); save(true); return alert('存檔失敗，盤點資料未清除：' + (e && e.message || e)); }
   S.scans = {}; S.scans2 = {}; S.round = 1; S.extras = []; S.log = [];
-  S.audit = {name:guessAuditName(), date:'', startedAt:new Date().toISOString()};
+  S.audit = next;
   logEv('start', '', `接續「${rec.audit.name}」`);
   save(true); render(); toast('已存檔，開始新一期盤點'); openAudit();
 }
@@ -1581,11 +1631,12 @@ function renderRecords(){
 }
 async function renderHistory(){
   let list = [];
-  try{ list = await idb.all(); }catch(e){ $('#histList').innerHTML = '<div class="empty">此瀏覽器無法讀取紀錄</div>'; return; }
+  try{ list = await idb.all(); }catch(e){ list = []; }
+  if(CLOUD && CLOUD.ready){ try{ list = (await CLOUD.listArchives()).concat(list.map(r => ({...r, local:true}))); }catch(e){} }
   list.sort((x,y) => y.savedAt.localeCompare(x.savedAt));
   $('#histList').innerHTML = list.length ? list.map(r => {
     const s = r.summary, p = s.total ? Math.round(s.done / s.total * 1000) / 10 : 0;
-    return `<div class="it" data-h="${esc(r.id)}"><div class="m"><div class="id">${esc(r.audit.name || '（未命名盤點）')} <span class="pill ${r.kind === 'close' ? 'ok' : ''}">${r.kind === 'close' ? '已結束' : '期中存檔'}</span></div>` +
+    return `<div class="it" data-h="${esc(r.id)}"><div class="m"><div class="id">${esc(r.audit.name || '（未命名盤點）')} <span class="pill ${r.kind === 'close' ? 'ok' : ''}">${r.kind === 'close' ? '已結束' : '期中存檔'}</span>${r.cloud ? ' <span class="pill">☁ 共用</span>' : r.local && CLOUD ? ' <span class="pill">本機</span>' : ''}</div>` +
       `<div class="nm">${esc(fmtTime(r.audit.startedAt))} ～ ${esc(fmtTime(r.savedAt))}・存檔人 ${esc(r.savedBy || '—')}</div>` +
       (s.round === 2
         ? `<div class="nm">初盤 ${s.done1}・複盤 ${s.done2}／${s.total}・初複盤差異 ${s.diff}・過程 ${(r.log || []).length} 筆</div></div></div>`
@@ -1599,7 +1650,7 @@ $('#logList').addEventListener('click', e => { const it = e.target.closest('[dat
 let curHist = null;
 $('#histList').addEventListener('click', async e => {
   const it = e.target.closest('[data-h]'); if(!it) return;
-  curHist = await idb.get(it.dataset.h); if(!curHist) return;
+  curHist = it.dataset.h.startsWith('cloud:') ? await CLOUD.loadArchive(it.dataset.h) : await idb.get(it.dataset.h); if(!curHist) return;
   const r = curHist, s = r.summary;
   $('#dhTitle').textContent = r.audit.name || '（未命名盤點）';
   $('#dhBody').innerHTML = `<div class="small">類型：${r.kind === 'close' ? '盤點結束存檔' : '期中存檔'}<br>盤點期間：${esc(fmtTime(r.audit.startedAt))} ～ ${esc(fmtTime(r.savedAt))}<br>基準日：${esc(r.audit.date || '—')}　存檔人：${esc(r.savedBy || '—')}<br>清冊來源：${esc(r.source || '—')}</div>` +
@@ -1616,11 +1667,12 @@ $('#histList').addEventListener('click', async e => {
 $('#dhExport').addEventListener('click', () => { if(curHist) downloadWb(buildResultWb(curHist), wbName(curHist)); });
 $('#dhDel').addEventListener('click', async () => {
   if(!curHist || !confirm(`確定刪除「${curHist.audit.name}」這筆盤點紀錄？`) || !confirm('再次確認：刪除後無法復原，建議先匯出 Excel。')) return;
-  await idb.del(curHist.id); curHist = null; $('#dlgHist').close(); renderHistory(); toast('已刪除紀錄');
+  if(curHist.cloud) await CLOUD.deleteArchive(curHist.id); else await idb.del(curHist.id); curHist = null; $('#dlgHist').close(); renderHistory(); toast('已刪除紀錄');
 });
 $('#btnWipe').addEventListener('click', () => {
   if(!confirm('確定清除全部資料（財產清冊、盤點紀錄、設定）？此動作無法復原。')) return;
   if(!confirm('再次確認：真的要清除全部資料？')) return;
+  if(CLOUD) CLOUD.signOut();
   S = blank(); reindex(); save(true); go('home');
 });
 function renderSettings(){
@@ -1713,6 +1765,7 @@ $('#btnAffixMode').addEventListener('click', () => { S.prefs.scanMode = 'affix';
 $('#btnResetLabels').addEventListener('click', () => {
   if(!confirm('確定清除全部標籤列印及黏貼紀錄？（財產清冊與盤點紀錄不受影響）')) return;
   if(!confirm('再次確認：清除後無法復原，建議先匯出標籤作業紀錄。')) return;
+  if(CLOUD) CLOUD.resetLabels().catch(e => toast('雲端清除失敗：' + e.message));
   S.labels = {}; save(true); render(); toast('已清除標籤紀錄');
 });
 $('#btnExportLabels').addEventListener('click', () => {
@@ -1801,5 +1854,6 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 render();
 if('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
+<script src="cloud.js"></script>
 </body>
 </html>
