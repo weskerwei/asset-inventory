@@ -78,6 +78,17 @@ table.t tr.click:hover td{background:var(--chip)}
 .dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--line)}
 .dot.ok{background:var(--ok)} .dot.ex{background:var(--warn)}
 #reader{width:100%;max-width:520px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;min-height:60px}
+#readerWrap{position:relative;max-width:520px;margin:0 auto}
+#scanFlash{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  border-radius:12px;color:#fff;text-align:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .15s}
+#scanFlash.on{opacity:1;pointer-events:auto}
+#scanFlash svg{width:96px;height:96px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
+#scanFlash .ft{font-size:30px;font-weight:800;letter-spacing:2px;text-shadow:0 2px 6px rgba(0,0,0,.35)}
+#scanFlash .fs{font-size:15px;font-weight:600;opacity:.95;max-width:92%;word-break:break-all}
+#scanFlash.ok{background:rgba(30,142,78,.88)} #scanFlash.dup{background:rgba(214,134,0,.92)} #scanFlash.bad{background:rgba(192,57,43,.9)}
+#scanFlash.on svg{animation:pop .35s ease-out}
+@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){#scanFlash.on svg{animation:none}}
 #reader video{border-radius:12px}
 .result{border-radius:12px;padding:12px 14px;margin-top:10px;border:1px solid var(--line)}
 .result.ok{background:var(--ok-bg);border-color:var(--ok)}
@@ -207,7 +218,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
       目前為<b>標籤黏貼確認</b>模式：掃描剛貼好的標籤，只記錄「已黏貼」，<b>不會</b>記成盤點。
     </div>
     <div id="roundBanner" class="small" style="border-radius:9px;padding:7px 10px;margin-bottom:10px;background:var(--ok-bg);color:var(--ok)"></div>
-    <div id="reader"></div>
+    <div id="readerWrap"><div id="reader"></div><div id="scanFlash" role="status" aria-live="assertive"></div></div>
     <div class="row" style="margin-top:10px">
       <button class="btn pri grow" id="btnCam">開啟相機掃描</button>
       <select id="camSel" class="grow hide"></select>
@@ -489,8 +500,12 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 <dialog id="dlgAudit">
   <div class="dh">盤點資訊</div>
   <div class="db">
-    <label class="f">盤點名稱<input type="text" id="auName"></label>
-    <label class="f">盤點基準日<input type="text" id="auDate" placeholder="例如 2026/10/15"></label>
+    <div class="row">
+      <label class="f grow">年度<select id="auYear"></select></label>
+      <label class="f grow">盤點類別<select id="auKind"><option>年中盤點</option><option>年終盤點</option></select></label>
+    </div>
+    <div class="small muted" style="margin:-2px 0 10px">盤點名稱：<b id="auNamePreview"></b></div>
+    <label class="f">盤點基準日<input type="text" id="auDate" placeholder="例如 2026/12/31"></label>
     <label class="f">公司名稱<input type="text" id="auCompany"></label>
   </div>
   <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="auOk">儲存</button></div>
@@ -983,16 +998,43 @@ $('#bulkOk').addEventListener('click', () => {
 });
 
 /* ---------- 盤點資訊 ---------- */
+// 盤點名稱由「年度＋盤點類別」組成，例如「115年度年終盤點」
+const ROC = () => new Date().getFullYear() - 1911;
+const defaultKind = () => new Date().getMonth() < 6 ? '年中盤點' : '年終盤點';
+const auditTitle = (y, k) => `${y}年度${k}`;
+// 舊資料只有名稱時，從名稱解析年度與類別
+function auditParts(a){
+  const m = String(a.name || '').match(/(\d{2,3})\s*年度?\s*(年中|年終)?/);
+  return {year:a.year || (m ? +m[1] : ROC()), kind:a.kind || (m && m[2] ? m[2] + '盤點' : defaultKind())};
+}
+// 預設基準日：年中為 6/30、年終為 12/31（西元年）
+const defaultDate = (y, k) => `${y + 1911}/${k === '年中盤點' ? '06/30' : '12/31'}`;
 function openAudit(){
-  $('#auName').value = S.audit.name || ''; $('#auDate').value = S.audit.date || ''; $('#auCompany').value = S.company || '';
+  const p = auditParts(S.audit), cur = ROC();
+  const years = []; for(let y = Math.min(p.year, cur - 3); y <= Math.max(p.year, cur + 2); y++) years.push(y);
+  $('#auYear').innerHTML = years.map(y => `<option value="${y}"${y === p.year ? ' selected' : ''}>${y} 年度（${y + 1911}）</option>`).join('');
+  $('#auKind').value = p.kind;
+  $('#auDate').value = S.audit.date || defaultDate(p.year, p.kind);
+  $('#auDate').dataset.auto = S.audit.date ? '' : '1';
+  $('#auCompany').value = S.company || '';
+  updateAuditPreview();
   $('#dlgAudit').showModal();
 }
+function updateAuditPreview(){
+  const y = +$('#auYear').value, k = $('#auKind').value;
+  $('#auNamePreview').textContent = auditTitle(y, k);
+  if($('#auDate').dataset.auto) $('#auDate').value = defaultDate(y, k);   // 基準日尚未手動修改時跟著變
+}
+$('#auYear').addEventListener('change', updateAuditPreview);
+$('#auKind').addEventListener('change', updateAuditPreview);
+$('#auDate').addEventListener('input', e => { e.target.dataset.auto = ''; });
 $('#btnEditAudit').addEventListener('click', openAudit);
 $('#btnEditAudit2').addEventListener('click', openAudit);
 $('#auOk').addEventListener('click', () => {
-  S.audit.name = $('#auName').value.trim(); S.audit.date = $('#auDate').value.trim(); S.company = $('#auCompany').value.trim();
+  S.audit.year = +$('#auYear').value; S.audit.kind = $('#auKind').value;
+  S.audit.name = auditTitle(S.audit.year, S.audit.kind); S.audit.date = $('#auDate').value.trim(); S.company = $('#auCompany').value.trim();
   logEv('audit', '', `名稱：${S.audit.name}；基準日：${S.audit.date || '—'}`);
-  if(CLOUD){ CLOUD.putAudit({name:S.audit.name, date:S.audit.date}); CLOUD.putMeta({company:S.company}); }
+  if(CLOUD){ CLOUD.putAudit({name:S.audit.name, year:S.audit.year, kind:S.audit.kind, date:S.audit.date}); CLOUD.putMeta({company:S.company}); }
   save(); $('#dlgAudit').close(); render();
 });
 
@@ -1030,6 +1072,9 @@ function affix(code, method){
 }
 function affixFeedback(kind, a, code){
   beep(kind); vibe(kind);
+  if(kind === 'ok') flash('ok', '黏貼確認成功', `${a.id}　${a.name}`);
+  else if(kind === 'dup') flash('dup', '重複掃描', `${a.id} 已確認過黏貼`);
+  else flash('bad', '不在財產清冊內', code);
   const L = a ? S.labels[a.id] : null;
   $('#scanResult').innerHTML = kind === 'ok'
     ? `<div class="result ok"><div class="small">✔ 已確認標籤黏貼${L && !L.printedAt ? '（此標籤沒有列印紀錄，已一併視為已列印）' : ''}</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div></div>`
@@ -1079,19 +1124,51 @@ function record(rawCode, method){
 }
 
 let audioCtx;
+// 手機瀏覽器規定聲音必須在使用者點按後才能播放：按「開啟相機」時先解鎖
+function unlockAudio(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const b = audioCtx.createBuffer(1, 1, 22050), s = audioCtx.createBufferSource();
+    s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+  }catch(e){}
+}
+const TONES = {
+  ok:  {type:'sine',   gain:.25, notes:[[988,.09,0],[1319,.16,.1]]},              // 叮咚（上升兩音）
+  dup: {type:'square', gain:.10, notes:[[523,.11,0],[523,.11,.17]]},              // 嗶、嗶（兩聲短音）
+  bad: {type:'sawtooth', gain:.10, notes:[[196,.38,0]]}                          // 嗡（長低音）
+};
 function beep(kind){
   if(!$('#optBeep').checked) return;
   try{
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const tones = kind === 'ok' ? [[1250,.09]] : kind === 'dup' ? [[700,.08],[700,.08]] : [[300,.25]];
-    let t = audioCtx.currentTime;
-    for(const [f,d] of tones){
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const tone = TONES[kind] || TONES.bad, t0 = audioCtx.currentTime + .01;
+    for(const [f, d, at] of tone.notes){
       const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.frequency.value = f; o.type = 'square'; g.gain.value = .06;
-      o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + d); t += d + .06;
+      o.type = tone.type; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t0 + at);
+      g.gain.linearRampToValueAtTime(tone.gain, t0 + at + .01);
+      g.gain.exponentialRampToValueAtTime(.0001, t0 + at + d);
+      o.connect(g); g.connect(audioCtx.destination); o.start(t0 + at); o.stop(t0 + at + d + .02);
     }
   }catch(e){}
 }
+// 相機畫面上的大型提示：成功（綠）、重複（橘）、錯誤（紅）
+const FLASH_ICON = {
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M7 12.5l3.2 3.2L17 9"/></svg>',
+  dup:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg>',
+  bad:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
+};
+let flashT = null;
+function flash(kind, title, sub){
+  const el = $('#scanFlash'); if(!el) return;
+  el.className = kind + ' on';
+  el.innerHTML = `${FLASH_ICON[kind] || FLASH_ICON.bad}<div class="ft">${esc(title)}</div>${sub ? `<div class="fs">${esc(sub)}</div>` : ''}`;
+  clearTimeout(flashT);
+  flashT = setTimeout(() => el.classList.remove('on'), kind === 'ok' ? 1100 : 1800);
+}
+$('#scanFlash').addEventListener('click', () => { clearTimeout(flashT); $('#scanFlash').classList.remove('on'); });
 function vibe(kind){
   if(!$('#optVibe').checked || !navigator.vibrate) return;
   navigator.vibrate(kind === 'ok' ? 80 : kind === 'dup' ? [60,60,60] : [250]);
@@ -1100,6 +1177,11 @@ function feedback(kind, a, sc, code){
   const box = $('#scanResult');
   const k = kind === 'skip' ? 'ok' : kind === 'same' ? 'bad' : kind;
   beep(k); vibe(k);
+  const R = ROUND[S.round];
+  if(kind === 'ok' || kind === 'skip') flash('ok', '掃描成功', `${a.id}　${a.name}`);
+  else if(kind === 'dup') flash('dup', '重複掃描', `${a.id} 本次${R}已於 ${fmtTime(sc.t).slice(11)} 由 ${sc.by || '—'} 盤點過`);
+  else if(kind === 'same') flash('bad', '不可由同一人複盤', `${a.id} 初盤人員為 ${sc.by}`);
+  else flash('bad', '清冊外條碼', code);
   if(kind === 'same'){
     box.innerHTML = `<div class="result bad"><div class="small">✖ 複盤人員不可與初盤人員相同，此筆未記錄</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small">此財產初盤由 <b>${esc(sc.by)}</b> 於 ${esc(fmtTime(sc.t))} 盤點，請改由其他人員複盤。</div></div>`;
   } else if(kind === 'ok' || kind === 'skip'){
@@ -1180,6 +1262,7 @@ $('#manualId').addEventListener('keydown', e => { if(e.key === 'Enter') manual()
 let qr = null, camOn = false, lastCode = '', lastAt = 0;
 async function startCam(){
   if(!requireAuditor()) return;
+  unlockAudio();
   if(!S.assets.length) return toast('請先匯入財產清冊');
   if(!window.isSecureContext) return alert('相機需要在 HTTPS 網址下才能使用（或在本機 localhost 測試）。');
   try{
@@ -1404,7 +1487,7 @@ function applyReplace(){
   if(CLOUD) CLOUD.uploadAssets().then(() => toast('已更新全公司共用的財產清冊')).catch(e => alert('上傳雲端失敗：' + e.message));
   toast(`已匯入 ${S.assets.length} 筆財產`);
 }
-function guessAuditName(){ const y = new Date().getFullYear() - 1911; return `${y}年度財產盤點`; }
+function guessAuditName(){ return auditTitle(ROC(), defaultKind()); }
 const drop = $('#drop');
 drop.addEventListener('click', () => $('#file').click());
 $('#file').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });

@@ -157,7 +157,7 @@
     A.collection('members').doc(api.uid).set({name:api.name, email:api.email, updatedAt:now()}, {merge:true});
     auditUnsubs.push(A.onSnapshot(s => {
       const d = s.data() || {};
-      S.audit = {name:d.name || '', date:d.date || '', startedAt:d.startedAt || '', round1ClosedAt:d.round1ClosedAt || ''};
+      S.audit = {name:d.name || '', year:d.year || null, kind:d.kind || '', date:d.date || '', startedAt:d.startedAt || '', round1ClosedAt:d.round1ClosedAt || ''};
       S.round = d.round === 2 ? 2 : 1;
       refresh();
     }));
@@ -307,7 +307,7 @@
     const rc = as.docs.find(x => x.id === 'recon');
     const m = mergeScans(new Map(ms.docs.map(x => [x.id, x.data()])));
     return {id:cid, cloud:true, kind:'close', savedAt:a.closedAt, savedBy:a.closedBy || '', company:a.company || S.company, source:a.source || '',
-      audit:{name:a.name, date:a.date, startedAt:a.startedAt, round1ClosedAt:a.round1ClosedAt, closedAt:a.closedAt}, round:a.round,
+      audit:{name:a.name, year:a.year, kind:a.kind, date:a.date, startedAt:a.startedAt, round1ClosedAt:a.round1ClosedAt, closedAt:a.closedAt}, round:a.round,
       recon:rc ? P(rc.data().json) : null, assets:chunks.flatMap(x => P(x.data().json) || []),
       scans:m.s1, scans2:m.s2, extras:m.ex, log:mergeLogs(new Map(ls.docs.map(x => [x.id, x.data()]))), summary:P(a.summary) || {}};
   }
