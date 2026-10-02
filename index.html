@@ -146,7 +146,9 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 .lbl.bc .lid,.lbl.bc .lnm,.lbl.bc .co,.lbl.bc .lsp{text-align:center}
 #printArea{display:none}
 @media print{
-  body{background:#fff}
+  html,body{margin:0!important;padding:0!important;background:#fff;width:auto;height:auto;overflow:visible}
+  #printArea{margin:0;padding:0}
+  #printArea .sheet{box-sizing:border-box;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
   header.top,nav.tabs,main,dialog,.toast{display:none!important}
   #printArea{display:block}
   #printArea .sheet{display:grid;page-break-after:always;break-after:page}
@@ -358,8 +360,9 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <p class="small muted" id="lblCount"></p>
     <div class="row">
       <button class="btn pri grow" id="btnPrint">列印標籤</button>
+      <button class="btn" id="btnPrintTest">列印尺寸測試頁</button>
     </div>
-    <p class="small muted">列印時請在印表機設定選擇「實際大小／100%」，並關閉頁首頁尾；標籤機請將紙張尺寸設為與上方相同。</p>
+    <p class="small muted">App 已將每頁設定為與標籤完全相同的尺寸，列印時維持「縮放：預設／100%」即為原尺寸。第一次使用新的印表機或標籤紙時，建議先印「尺寸測試頁」用尺量一下。</p>
   </div>
   <div class="card" id="lblProgress">
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
@@ -556,6 +559,17 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   <div class="df"><button class="btn danger" id="dhDel">刪除此紀錄</button><span style="flex:1"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="dhExport">匯出 Excel</button></div>
 </dialog>
 
+<dialog id="dlgPrintTip">
+  <div class="dh">列印前請確認：原尺寸列印</div>
+  <div class="db small">
+    <p style="margin-top:0">標籤頁面已設定為 <b id="ptSize"></b>。請在列印視窗確認以下設定，標籤才會以原尺寸印出、不會被縮小：</p>
+    <div id="ptBrowser"></div>
+    <p><b>標籤機</b>：印表機的紙張（標籤）尺寸請設為 <b id="ptSize2"></b>，並關閉驅動程式中的「縮放至紙張大小」之類的選項。</p>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ptHide"> 這台裝置不再提醒</label>
+  </div>
+  <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="ptGo">開始列印</button></div>
+</dialog>
+
 <dialog id="dlgPrinted">
   <div class="dh">列印確認</div>
   <div class="db"><p id="prInfo" style="margin:0"></p><p class="small muted">確認後會記錄這些標籤的列印時間，方便追蹤哪些標籤還沒印、還沒貼。</p></div>
@@ -585,7 +599,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.02-e';
+const APP_VERSION = '2026.10.02-f';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -2185,22 +2199,58 @@ $('#btnPrint').addEventListener('click', () => {
     const per = sz.cols * sz.rows, gap = sz.gap || 0;
     const cells = Array(skipN()).fill(null).concat(t);
     for(let i = 0; i < cells.length; i += per){
-      html += `<div class="sheet" style="width:210mm;height:296mm;padding:${sz.mt}mm 0 0 ${sz.ml}mm;grid-template-columns:repeat(${sz.cols},${sz.w}mm);grid-auto-rows:${sz.h}mm;column-gap:${gap}mm;overflow:hidden">` +
+      html += `<div class="sheet" style="width:209.7mm;height:296.5mm;padding:${sz.mt}mm 0 0 ${sz.ml}mm;grid-template-columns:repeat(${sz.cols},${sz.w}mm);grid-auto-rows:${sz.h}mm;column-gap:${gap}mm;overflow:hidden">` +
         cells.slice(i, i + per).map(a => a ? labelHtml(a, sz, o) : `<div style="width:${sz.w}mm;height:${sz.h}mm"></div>`).join('') + '</div>';
     }
   } else {
     css = `@page{size:${sz.w}mm ${sz.h}mm;margin:0}`;
-    html = t.map(a => `<div class="sheet" style="width:${sz.w}mm;height:${sz.h}mm;overflow:hidden">${labelHtml(a, sz, o)}</div>`).join('');
+    html = t.map(a => `<div class="sheet" style="width:${sz.w - .3}mm;height:${sz.h - .3}mm;overflow:hidden">${labelHtml(a, sz, o)}</div>`).join('');
   }
   if(!pageStyle){ pageStyle = document.createElement('style'); document.head.appendChild(pageStyle); }
   pageStyle.textContent = css;
   area.innerHTML = html;
   printIds = t.map(a => a.id);
-  setTimeout(() => {
+  printWithTip(sz, () => {
     window.print();
     // 列印視窗關閉後詢問是否成功，成功才記錄列印時間
     setTimeout(() => { $('#prInfo').textContent = `剛才送出 ${printIds.length} 張標籤（${printIds[0]}${printIds.length > 1 ? ' … ' + printIds[printIds.length - 1] : ''}），是否已成功列印？`; if(!$('#dlgPrinted').open) $('#dlgPrinted').showModal(); }, 400);
-  }, 50);
+  });
+});
+// 列印前提醒：依瀏覽器說明「原尺寸」的設定位置
+function printWithTip(sz, go){
+  const pageText = sz.cols ? 'A4（210 × 297 mm）' : `${sz.w} × ${sz.h} mm`;
+  if(S.prefs.printTipHidden){ setTimeout(go, 50); return; }
+  const ua = navigator.userAgent;
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|Edg|Android/.test(ua);
+  const isEdge = /Edg\//.test(ua);
+  $('#ptSize').textContent = pageText; $('#ptSize2').textContent = sz.cols ? 'A4' : pageText;
+  $('#ptBrowser').innerHTML = isSafari
+    ? '<p><b>Safari</b>：列印視窗中「縮放」保持 <b>100%</b>；若有「縮放以符合頁面」請取消勾選。</p>'
+    : `<p><b>${isEdge ? 'Edge' : 'Chrome'}</b>：</p><ol style="margin:0 0 8px;padding-left:20px">
+        <li>「目的地」選標籤機（或印表機）</li>
+        <li>展開「<b>更多設定</b>」</li>
+        <li>「縮放」選 <b>預設</b>（或「自訂」輸入 <b>100</b>）；不要選「符合可列印區域」</li>
+        <li>「邊界」選 <b>無</b>；取消勾選「<b>頁首及頁尾</b>」</li></ol>`;
+  $('#ptHide').checked = false;
+  $('#ptGo').onclick = () => { if($('#ptHide').checked){ S.prefs.printTipHidden = true; save(); } $('#dlgPrintTip').close(); setTimeout(go, 150); };
+  $('#dlgPrintTip').showModal();
+}
+// 列印尺寸測試頁：外框與標籤同尺寸、每 5 mm 一個刻度，可用尺量確認是否原尺寸
+$('#btnPrintTest').addEventListener('click', () => {
+  const sz = SIZES[$('#lblSize').value];
+  const w = sz.cols ? 100 : sz.w, h = sz.cols ? 50 : sz.h;
+  let ticks = '';
+  for(let x = 0; x <= w - 2; x += 5) ticks += `<line x1="${x + 1}" y1="1" x2="${x + 1}" y2="${x % 10 ? 3 : 5}" stroke="#000" stroke-width=".2"/>` + (x % 10 || x === 0 ? '' : `<text x="${x + 1}" y="7.5" font-size="2.2" text-anchor="middle">${x}</text>`);
+  for(let y = 0; y <= h - 2; y += 5) ticks += `<line x1="1" y1="${y + 1}" x2="${y % 10 ? 3 : 5}" y2="${y + 1}" stroke="#000" stroke-width=".2"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w - .3}mm" height="${h - .3}mm" viewBox="0 0 ${w} ${h}">
+    <rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" fill="none" stroke="#000" stroke-width=".3"/>${ticks}
+    <text x="${w / 2}" y="${h / 2}" font-size="${Math.min(3, h / 6)}" text-anchor="middle">尺寸測試：外框應為 ${w - 1} × ${h - 1} mm</text>
+    <text x="${w / 2}" y="${h / 2 + Math.min(4, h / 4.5)}" font-size="${Math.min(2.4, h / 7)}" text-anchor="middle">刻度每 5 mm 一格，用尺量 10 → ${Math.floor((w - 2) / 10) * 10} 的距離</text></svg>`;
+  if(!pageStyle){ pageStyle = document.createElement('style'); document.head.appendChild(pageStyle); }
+  pageStyle.textContent = sz.cols ? '@page{size:A4 portrait;margin:0}' : `@page{size:${sz.w}mm ${sz.h}mm;margin:0}`;
+  $('#printArea').classList.remove('guides');
+  $('#printArea').innerHTML = `<div class="sheet" style="width:${(sz.cols ? 209.7 : sz.w - .3)}mm;height:${(sz.cols ? 296.5 : sz.h - .3)}mm;${sz.cols ? 'padding:20mm' : ''}">${svg}</div>`;
+  printWithTip(sz, () => window.print());
 });
 let printIds = [];
 $('#prYes').addEventListener('click', () => { markPrinted(printIds); printIds = []; $('#dlgPrinted').close(); render(); toast('已記錄列印時間'); });
