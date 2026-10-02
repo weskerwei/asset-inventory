@@ -585,7 +585,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.02-d';
+const APP_VERSION = '2026.10.02-e';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1388,6 +1388,14 @@ async function startCam(){
   if(camId){
     await attempt({deviceId:{exact:camId}}, '指定鏡頭');
   } else {
+    // 0) 先用上次成功的鏡頭（依名稱找，裝置 id 可能會變）
+    if(S.prefs.camLabel){
+      try{
+        const ds = await navigator.mediaDevices.enumerateDevices();
+        const d = ds.find(x => x.kind === 'videoinput' && x.label === S.prefs.camLabel);
+        if(d && d.deviceId) await attempt({deviceId:{exact:d.deviceId}}, S.prefs.camLabel);
+      }catch(e){}
+    }
     // 1) 只指定後鏡頭、不指定解析度（部分 iPhone 後鏡頭指定解析度會黑畫面）
     await attempt({facingMode:'environment'}, '後鏡頭');
     // 2) 逐一嘗試每顆後鏡頭
@@ -1415,6 +1423,8 @@ async function startCam(){
   camStarting = false; camOn = true;
   $('#btnCam').disabled = false; $('#btnCam').textContent = '關閉相機'; camMsg('', '');
   camStat.label = got.label;
+  // 記住成功的後鏡頭，下次優先使用（前鏡頭不記）
+  if(got.label && !/front|前|user|facetime/i.test(got.label)){ S.prefs.camLabel = got.label; save(); }
   startPreview(got.v, pv);
   startDecode(got.v, dg);
   listCameras(camId);
