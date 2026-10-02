@@ -103,7 +103,10 @@ label.btn.disabled{opacity:.5;pointer-events:none}
 #scanFlash.on svg{animation:pop .35s ease-out}
 @keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion: reduce){#scanFlash.on svg{animation:none}}
-#reader video{border-radius:12px}
+#reader video{border-radius:12px;width:100%;display:block;object-fit:cover;max-height:62vh}
+#reader .aim{position:absolute;left:50%;top:50%;width:70%;aspect-ratio:1.25/1;max-height:80%;transform:translate(-50%,-50%);
+  border:3px solid rgba(255,255,255,.9);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.28);pointer-events:none}
+#reader{position:relative}
 .result{border-radius:12px;padding:12px 14px;margin-top:10px;border:1px solid var(--line)}
 .result.ok{background:var(--ok-bg);border-color:var(--ok)}
 .result.dup{background:var(--warn-bg);border-color:var(--warn)}
@@ -1307,7 +1310,9 @@ function camErrText(e){
 }
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 const SCAN_FORMATS = () => { const F = Html5QrcodeSupportedFormats; return [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.DATA_MATRIX]; };
-let camStarting = false;
+let camStarting = false, camStream = null, camVideo = null, camTimer = null, camBusy = false, detector = null;
+const waitFor = (fn, ms) => new Promise(res => { const t0 = Date.now(); (function chk(){ if(fn()) return res(true); if(Date.now() - t0 > ms) return res(false); setTimeout(chk, 120); })(); });
+// 相機由 App 自己開啟並播放（iPhone 需要 playsinline + muted），開啟後確認畫面真的有影像，避免黑畫面
 async function startCam(){
   if(!requireAuditor()) return;
   unlockAudio();
@@ -1319,43 +1324,90 @@ async function startCam(){
   camStarting = true;
   $('#btnCam').disabled = true; $('#btnCam').textContent = '相機啟動中…';
   camMsg('info', '正在開啟相機…若跳出權限詢問，請選「允許」。');
-  const cfg = {fps:10, qrbox:(w, h) => {
-    const s = Math.max(150, Math.floor(Math.min(w, h) * .7));
-    return {width:Math.min(s, w - 10), height:Math.min(Math.floor(s * .8), h - 10)};
-  }};
   const camId = $('#camSel').value;
-  // 依序嘗試：指定鏡頭 → 後鏡頭（強制）→ 後鏡頭（建議）→ 任一鏡頭
-  const tries = camId ? [camId] : [{facingMode:{exact:'environment'}}, {facingMode:'environment'}, 'any'];
+  const size = {width:{ideal:1280}, height:{ideal:720}};
+  const tries = camId ? [{deviceId:{exact:camId}, ...size}] : [{facingMode:{exact:'environment'}, ...size}, {facingMode:'environment'}, true];
   let lastErr = null;
-  for(const c of tries){
+  for(const v of tries){
+    try{ camStream = await withTimeout(navigator.mediaDevices.getUserMedia({video:v, audio:false}), 15000); lastErr = null; break; }
+    catch(e){ lastErr = e; console.warn('getUserMedia failed', v, e); if(isPermErr(e)) break; }
+  }
+  if(lastErr || !camStream) return camFail(lastErr || new Error('NotFoundError'));
+  // 建立影片元素
+  const box = $('#reader'); box.innerHTML = '';
+  const v = document.createElement('video');
+  v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.setAttribute('muted', ''); v.setAttribute('autoplay', '');
+  v.muted = true; v.playsInline = true; v.autoplay = true;
+  box.appendChild(v);
+  const aim = document.createElement('div'); aim.className = 'aim'; box.appendChild(aim);
+  v.srcObject = camStream; camVideo = v;
+  // play() 在沒有影像時可能永遠不會結束，加上逾時
+  try{ await withTimeout(v.play(), 3000); }catch(e){ console.warn('video.play', e); }
+  let ok = await waitFor(() => v.videoWidth > 0 && v.readyState >= 2, 4000);
+  if(!ok){   // iPhone 偶爾第一次不出畫面：重新接上影像再播放一次
+    v.srcObject = null; v.srcObject = camStream;
+    try{ await withTimeout(v.play(), 3000); }catch(e){}
+    ok = await waitFor(() => v.videoWidth > 0 && v.readyState >= 2, 4000);
+  }
+  if(!ok){
+    stopCam();
+    return camMsg('bad', '相機已開啟，但畫面沒有出現（黑畫面）。' + (IS_IOS
+      ? (IS_STANDALONE ? '<br>這是 iPhone「主畫面 App」的已知問題：請改用 <b>Safari 直接開啟網址</b>使用相機掃描，或使用「拍照掃描」。'
+                       : '<br>請把 Safari 完全關閉（從多工畫面滑掉）後重新開啟，再試一次；或使用「拍照掃描」。')
+      : '<br>請重新整理頁面後再試，或使用「拍照掃描」。'));
+  }
+  camStarting = false; camOn = true;
+  $('#btnCam').disabled = false; $('#btnCam').textContent = '關閉相機'; camMsg('', '');
+  startDecode(v);
+  listCameras(camId);
+}
+function camFail(e){
+  camStarting = false; camOn = false;
+  $('#btnCam').disabled = false; $('#btnCam').textContent = '開啟相機掃描';
+  camMsg('bad', camErrText(e));
+}
+// 條碼辨識：Android Chrome 用內建 BarcodeDetector（快）；iPhone 等不支援時，定時擷取畫面交給掃描套件辨識
+async function startDecode(v){
+  detector = null;
+  if('BarcodeDetector' in window){
     try{
-      if(qr){ try{ if(qr.isScanning) await qr.stop(); qr.clear(); }catch(_){} }
-      qr = new Html5Qrcode('reader', {formatsToSupport:SCAN_FORMATS(), experimentalFeatures:{useBarCodeDetectorIfSupported:true}, verbose:false});
-      let cam = c;
-      if(c === 'any'){
-        const cs = await withTimeout(Html5Qrcode.getCameras(), 15000);
-        if(!cs || !cs.length) throw new Error('NotFoundError');
-        const back = cs.find(x => /back|rear|environment|後/i.test(x.label));
-        cam = (back || cs[cs.length - 1]).id;
-      }
-      await withTimeout(qr.start(cam, cfg, onDecode, () => {}), 15000);
-      lastErr = null; break;
-    }catch(e){
-      lastErr = e; console.warn('camera start failed', c, e);
-      if(isPermErr(e)) break;          // 權限被拒，換方式也沒用
+      const want = ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix'];
+      const has = await BarcodeDetector.getSupportedFormats();
+      const fm = want.filter(f => has.includes(f));
+      if(fm.length) detector = new BarcodeDetector({formats:fm});
+    }catch(e){ detector = null; }
+  }
+  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', {willReadFrequently:true});
+  photoQr = photoQr || new Html5Qrcode('photoReader', {formatsToSupport:SCAN_FORMATS(), verbose:false});
+  const tick = async () => {
+    if(!camOn || camVideo !== v) return;
+    if(!camBusy && v.videoWidth){
+      camBusy = true;
+      try{
+        if(detector){
+          const r = await detector.detect(v);
+          if(r && r.length) onDecode(r[0].rawValue);
+        } else {
+          // 擷取畫面中央（對準框範圍略放大），縮到最長邊 800 像素再辨識
+          const sw = v.videoWidth * .8, sh = v.videoHeight * .8, k = Math.min(1, 800 / Math.max(sw, sh));
+          canvas.width = Math.round(sw * k); canvas.height = Math.round(sh * k);
+          ctx.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
+          const b = await new Promise(r => canvas.toBlob(r, 'image/jpeg', .85));
+          try{ onDecode(await photoQr.scanFile(new File([b], 'f.jpg', {type:'image/jpeg'}), false)); }catch(e){ /* 這一格沒有條碼 */ }
+        }
+      }catch(e){ console.warn('decode', e); }
+      camBusy = false;
     }
-  }
-  camStarting = false; $('#btnCam').disabled = false;
-  if(lastErr){
-    camOn = false; $('#btnCam').textContent = '開啟相機掃描';
-    return camMsg('bad', camErrText(lastErr));
-  }
-  camOn = true; $('#btnCam').textContent = '關閉相機'; camMsg('', '');
-  // 列出可用鏡頭，方便手機有多顆鏡頭時切換
-  Html5Qrcode.getCameras().then(cs => {
-    if(cs && cs.length > 1){
+    camTimer = setTimeout(tick, detector ? 120 : 250);
+  };
+  tick();
+}
+function listCameras(camId){
+  navigator.mediaDevices.enumerateDevices().then(ds => {
+    const cs = ds.filter(d => d.kind === 'videoinput');
+    if(cs.length > 1){
       const sel = $('#camSel');
-      sel.innerHTML = '<option value="">自動（後鏡頭）</option>' + cs.map(x => `<option value="${esc(x.id)}"${x.id === camId ? ' selected' : ''}>${esc(x.label || x.id)}</option>`).join('');
+      sel.innerHTML = '<option value="">自動（後鏡頭）</option>' + cs.map((x, i) => `<option value="${esc(x.deviceId)}"${x.deviceId === camId ? ' selected' : ''}>${esc(x.label || '鏡頭 ' + (i + 1))}</option>`).join('');
       sel.classList.remove('hide');
     }
   }).catch(() => {});
@@ -1393,8 +1445,12 @@ async function scanPhoto(file){
 $('#photoScan').addEventListener('click', e => { if(!requireAuditor()) e.preventDefault(); });
 $('#photoScan').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; scanPhoto(f); });
 async function stopCam(){
-  if(qr && (camOn || qr.isScanning)){ try{ await qr.stop(); }catch(e){} }
-  camOn = false; $('#btnCam').textContent = '開啟相機掃描';
+  clearTimeout(camTimer); camTimer = null;
+  if(camStream){ camStream.getTracks().forEach(tr => { try{ tr.stop(); }catch(e){} }); camStream = null; }
+  if(camVideo){ try{ camVideo.srcObject = null; }catch(e){} camVideo = null; }
+  $('#reader').innerHTML = '';
+  camOn = false; camStarting = false; camBusy = false;
+  $('#btnCam').disabled = false; $('#btnCam').textContent = '開啟相機掃描';
 }
 function onDecode(text){
   const now = Date.now();
