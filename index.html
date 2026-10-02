@@ -79,6 +79,8 @@ table.t tr.click:hover td{background:var(--chip)}
 .dot.ok{background:var(--ok)} .dot.ex{background:var(--warn)}
 #reader{width:100%;max-width:520px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;min-height:60px}
 #readerWrap{position:relative;max-width:520px;margin:0 auto}
+#camMsg.info{background:var(--chip);color:var(--ink)} #camMsg.bad{background:var(--bad-bg);color:var(--bad)}
+label.btn.disabled{opacity:.5;pointer-events:none}
 #scanFlash{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
   border-radius:12px;color:#fff;text-align:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .15s}
 #scanFlash.on{opacity:1;pointer-events:auto}
@@ -221,8 +223,12 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <div id="readerWrap"><div id="reader"></div><div id="scanFlash" role="status" aria-live="assertive"></div></div>
     <div class="row" style="margin-top:10px">
       <button class="btn pri grow" id="btnCam">開啟相機掃描</button>
+      <label class="btn grow" id="btnPhoto" for="photoScan" style="text-align:center">拍照掃描</label>
+      <input type="file" id="photoScan" accept="image/*" capture="environment" class="hide">
       <select id="camSel" class="grow hide"></select>
     </div>
+    <div id="camMsg" class="small hide" style="margin-top:8px;border-radius:9px;padding:8px 10px"></div>
+    <div id="photoReader" style="display:none"></div>
     <div class="row small muted" style="margin-top:8px">
       <label><input type="checkbox" id="optBeep" checked> 提示音</label>
       <label><input type="checkbox" id="optVibe" checked> 震動</label>
@@ -1062,6 +1068,7 @@ function updateAuditorUi(){
   $('#byHint').classList.toggle('hide', ok);
   $('#scanBy').classList.toggle('need', !ok && $('#scanBy').classList.contains('need'));
   $('#btnCam').disabled = $('#btnManual').disabled = $('#manualId').disabled = !ok;
+  $('#btnPhoto').classList.toggle('disabled', !ok);
 }
 function affix(code, method){
   const id = normId(code), a = byId.get(id);
@@ -1260,39 +1267,114 @@ $('#manualId').addEventListener('keydown', e => { if(e.key === 'Enter') manual()
 
 /* ---------- 相機掃描 ---------- */
 let qr = null, camOn = false, lastCode = '', lastAt = 0;
+function camMsg(kind, html){
+  const el = $('#camMsg');
+  el.className = 'small' + (kind ? ' ' + kind : '') + (html ? '' : ' hide');
+  el.innerHTML = html || '';
+}
+const isPermErr = e => /NotAllowed|Permission|denied|Security/i.test(String(e && (e.name || '') + ' ' + (e.message || e)));
+function camErrText(e){
+  const s = String(e && (e.name || '') + ' ' + (e.message || e));
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(/timeout/i.test(s)) return '相機沒有回應。可能是權限詢問視窗沒有出現或被關掉，請重新整理頁面後再按一次「開啟相機掃描」，出現詢問時選「允許」。也可以先用「拍照掃描」。';
+  if(isPermErr(e)) return '<b>相機權限被拒絕。</b><br>' + (ios
+    ? 'iPhone：到「設定 → Safari → 相機」改為「允許」，或在 Safari 網址列左側「ᴀA」→「網站設定」→「相機：允許」。若是從主畫面開啟的 App，也請到「設定 → Safari → 相機」確認。'
+    : 'Android：點網址列左側的鎖頭圖示 →「權限」→ 開啟「相機」；或到手機「設定 → 應用程式 → Chrome → 權限 → 相機」改為允許。')
+    + '<br>改好後請重新開啟 App。暫時可以先用「拍照掃描」。';
+  if(/NotFound|not found|no camera|Requested device/i.test(s)) return '找不到可用的相機。請確認手機相機正常，或改用「拍照掃描」。';
+  if(/NotReadable|Could not start|TrackStart|in use|busy/i.test(s)) return '相機正被其他 App 使用（例如 LINE 視訊、相機 App）。請關閉其他 App 後再試，或改用「拍照掃描」。';
+  if(/Overconstrained/i.test(s)) return '這支手機的相機不支援目前的設定，請在右側選單改選其他鏡頭，或改用「拍照掃描」。';
+  return '無法開啟相機：' + esc(s) + '<br>請改用「拍照掃描」，並把這段訊息告訴系統管理員。';
+}
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+const SCAN_FORMATS = () => { const F = Html5QrcodeSupportedFormats; return [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.DATA_MATRIX]; };
+let camStarting = false;
 async function startCam(){
   if(!requireAuditor()) return;
   unlockAudio();
-  if(!S.assets.length) return toast('請先匯入財產清冊');
-  if(!window.isSecureContext) return alert('相機需要在 HTTPS 網址下才能使用（或在本機 localhost 測試）。');
-  try{
-    if(!qr){
-      const F = Html5QrcodeSupportedFormats;
-      qr = new Html5Qrcode('reader', {
-        formatsToSupport:[F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.DATA_MATRIX],
-        experimentalFeatures:{useBarCodeDetectorIfSupported:true}, verbose:false
-      });
-    }
-    const sel = $('#camSel');
-    const camId = sel.value;
-    await qr.start(camId ? {deviceId:{exact:camId}} : {facingMode:'environment'},
-      {fps:12, qrbox:(w,h) => { const s = Math.floor(Math.min(w,h) * .72); return {width:s, height:Math.floor(s * .75)}; }, aspectRatio:1.333},
-      onDecode, () => {});
-    camOn = true; $('#btnCam').textContent = '關閉相機';
-    // 列出可用鏡頭，方便手機有多顆鏡頭時切換
-    Html5Qrcode.getCameras().then(cs => {
-      if(cs && cs.length > 1){
-        sel.innerHTML = '<option value="">自動（後鏡頭）</option>' + cs.map(c => `<option value="${esc(c.id)}"${c.id === camId ? ' selected' : ''}>${esc(c.label || c.id)}</option>`).join('');
-        sel.classList.remove('hide');
+  if(!S.assets.length) return camMsg('bad', '尚未取得財產清冊。請先登入（雲端模式）或到「設定」匯入清冊。');
+  if(!window.isSecureContext) return camMsg('bad', '相機需要在 HTTPS 網址下才能使用。');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+    return camMsg('bad', '這個瀏覽器不支援即時相機。請改用 Safari（iPhone）或 Chrome（Android）開啟，或使用「拍照掃描」。');
+  if(camStarting) return;
+  camStarting = true;
+  $('#btnCam').disabled = true; $('#btnCam').textContent = '相機啟動中…';
+  camMsg('info', '正在開啟相機…若跳出權限詢問，請選「允許」。');
+  const cfg = {fps:10, qrbox:(w, h) => {
+    const s = Math.max(150, Math.floor(Math.min(w, h) * .7));
+    return {width:Math.min(s, w - 10), height:Math.min(Math.floor(s * .8), h - 10)};
+  }};
+  const camId = $('#camSel').value;
+  // 依序嘗試：指定鏡頭 → 後鏡頭（強制）→ 後鏡頭（建議）→ 任一鏡頭
+  const tries = camId ? [camId] : [{facingMode:{exact:'environment'}}, {facingMode:'environment'}, 'any'];
+  let lastErr = null;
+  for(const c of tries){
+    try{
+      if(qr){ try{ if(qr.isScanning) await qr.stop(); qr.clear(); }catch(_){} }
+      qr = new Html5Qrcode('reader', {formatsToSupport:SCAN_FORMATS(), experimentalFeatures:{useBarCodeDetectorIfSupported:true}, verbose:false});
+      let cam = c;
+      if(c === 'any'){
+        const cs = await withTimeout(Html5Qrcode.getCameras(), 15000);
+        if(!cs || !cs.length) throw new Error('NotFoundError');
+        const back = cs.find(x => /back|rear|environment|後/i.test(x.label));
+        cam = (back || cs[cs.length - 1]).id;
       }
-    }).catch(()=>{});
-  }catch(e){
+      await withTimeout(qr.start(cam, cfg, onDecode, () => {}), 15000);
+      lastErr = null; break;
+    }catch(e){
+      lastErr = e; console.warn('camera start failed', c, e);
+      if(isPermErr(e)) break;          // 權限被拒，換方式也沒用
+    }
+  }
+  camStarting = false; $('#btnCam').disabled = false;
+  if(lastErr){
     camOn = false; $('#btnCam').textContent = '開啟相機掃描';
-    alert('無法開啟相機：' + (e && e.message || e) + '\n請確認已允許瀏覽器使用相機。');
+    return camMsg('bad', camErrText(lastErr));
+  }
+  camOn = true; $('#btnCam').textContent = '關閉相機'; camMsg('', '');
+  // 列出可用鏡頭，方便手機有多顆鏡頭時切換
+  Html5Qrcode.getCameras().then(cs => {
+    if(cs && cs.length > 1){
+      const sel = $('#camSel');
+      sel.innerHTML = '<option value="">自動（後鏡頭）</option>' + cs.map(x => `<option value="${esc(x.id)}"${x.id === camId ? ' selected' : ''}>${esc(x.label || x.id)}</option>`).join('');
+      sel.classList.remove('hide');
+    }
+  }).catch(() => {});
+}
+// 拍照掃描：用手機內建相機拍一張條碼照片辨識（即時相機無法使用時的備用方式）
+async function shrinkImage(file, max = 1600){
+  try{
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    if(k === 1) return file;
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const b = await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
+    return new File([b], 'scan.jpg', {type:'image/jpeg'});
+  }catch(e){ return file; }
+}
+let photoQr = null;
+async function scanPhoto(file){
+  if(!file || !requireAuditor()) return;
+  unlockAudio();
+  if(camOn) await stopCam();
+  camMsg('info', '辨識中…');
+  try{
+    photoQr = photoQr || new Html5Qrcode('photoReader', {formatsToSupport:SCAN_FORMATS(), verbose:false});
+    let text;
+    try{ text = await photoQr.scanFile(await shrinkImage(file), false); }
+    catch(e){ text = await photoQr.scanFile(file, false); }   // 縮圖後辨識不到時，用原圖再試一次
+    camMsg('', '');
+    record(text, 'scan');
+  }catch(e){
+    beep('bad');
+    camMsg('bad', '照片中找不到條碼。請讓條碼在畫面中央、靠近一點並對焦清楚，再拍一次。');
   }
 }
+$('#photoScan').addEventListener('click', e => { if(!requireAuditor()) e.preventDefault(); });
+$('#photoScan').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; scanPhoto(f); });
 async function stopCam(){
-  if(qr && camOn){ try{ await qr.stop(); }catch(e){} }
+  if(qr && (camOn || qr.isScanning)){ try{ await qr.stop(); }catch(e){} }
   camOn = false; $('#btnCam').textContent = '開啟相機掃描';
 }
 function onDecode(text){

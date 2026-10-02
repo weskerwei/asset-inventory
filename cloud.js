@@ -220,7 +220,7 @@
     clearTimeout(rT);
     rT = setTimeout(() => {
       reindex(); save();
-      if(curView === 'scan'){ renderScanSide(); const st = stats(); $('#hdrSub').textContent = S.assets.length ? `${ROUND[S.round]} ${st.done}/${st.total}` : ''; }
+      if(curView === 'scan'){ renderScanSide(); updateAuditorUi(); if(!$('#scanBy').value) $('#scanBy').value = S.prefs.by || ''; const st = stats(); $('#hdrSub').textContent = S.assets.length ? `${ROUND[S.round]} ${st.done}/${st.total}` : ''; }
       else if(!document.querySelector('dialog[open]')) render();
       updateNet();
     }, 250);
