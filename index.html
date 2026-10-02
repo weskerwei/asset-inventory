@@ -8,12 +8,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="雲象科技財產盤點">
 <script>
-  // LINE 內建瀏覽器無法使用 Google 登入，相機也常無法開啟：自動改用手機的預設瀏覽器開啟
   (function(){
-    var ua = navigator.userAgent;
-    if(/\bLine\//i.test(ua) && !/openExternalBrowser=1/.test(location.search)){
-      location.replace(location.pathname + (location.search ? location.search + '&' : '?') + 'openExternalBrowser=1' + location.hash);
-    }
+    var ua = navigator.userAgent, q = location.search;
+    // LINE 內建瀏覽器無法使用 Google 登入，相機也常無法開啟：自動改用手機的預設瀏覽器開啟
+    if(/\bLine\//i.test(ua) && !/openExternalBrowser=1/.test(q)) q += (q ? '&' : '?') + 'openExternalBrowser=1';
+    // 正式網址：App 與 Google 登入同一個網域，iPhone Safari 才不會擋掉登入結果
+    var HOME = 'aetherai-asset-inventory.firebaseapp.com';
+    var h = location.hostname;
+    if(h === 'weskerwei.github.io' || /\.web\.app$/.test(h)) { location.replace('https://' + HOME + '/' + q + location.hash); return; }
+    if(q !== location.search) location.replace(location.pathname + q + location.hash);
   })();
 </script>
 <link rel="manifest" href="manifest.webmanifest">

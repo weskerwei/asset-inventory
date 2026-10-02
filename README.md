@@ -7,7 +7,14 @@
 - `sw.js`、`manifest.webmanifest`、`icon-*.png`：離線使用與「加入主畫面」用
 - `vendor/`：開源套件（SheetJS 讀寫 Excel、qrcode-generator、JsBarcode、html5-qrcode 相機掃描）
 
-## 上線方式
+## 正式網址
+**https://aetherai-asset-inventory.firebaseapp.com/**
+
+App 放在 Firebase Hosting，和 Google 登入使用同一個網域，iPhone Safari 才能正常登入。舊網址（weskerwei.github.io/asset-inventory/）和 *.web.app 都會自動轉到正式網址。
+
+部署指令：`npx firebase-tools deploy --only hosting --project aetherai-asset-inventory`
+
+## 上線方式（舊）
 手機相機只能在 **HTTPS** 網址下使用，所以要把整個資料夾放到任一 HTTPS 靜態網站空間：
 - 公司內部的 HTTPS 網站伺服器（IIS / Nginx 等）
 - GitHub Pages、Netlify、Cloudflare Pages（免費）。只會放程式，財產資料不會在上面
