@@ -604,7 +604,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.02-j';
+const APP_VERSION = '2026.10.02-k';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1052,7 +1052,7 @@ $('#bulkOk').addEventListener('click', () => {
 // 盤點名稱由「年度＋盤點類別」組成，例如「115年度年終盤點」
 const ROC = () => new Date().getFullYear() - 1911;
 const defaultKind = () => new Date().getMonth() < 6 ? '年中盤點' : '年終盤點';
-const YEAR_FROM = 115, YEAR_COUNT = 10;
+const YEAR_FROM = 115, YEAR_COUNT = 11;
 const auditTitle = (y, k) => `${y}年度${k}`;
 // 舊資料只有名稱時，從名稱解析年度與類別
 function auditParts(a){
@@ -1063,7 +1063,7 @@ function auditParts(a){
 const defaultDate = (y, k) => `${y + 1911}/${k === '年中盤點' ? '06/30' : '12/31'}`;
 function openAudit(){
   const p = auditParts(S.audit), cur = ROC();
-  // 年度選項：115 年度起共 10 個年度（115～124）；舊資料若在範圍外也保留可選
+  // 年度選項：115～125 年度；舊資料若在範圍外也保留可選
   const years = []; for(let y = YEAR_FROM; y < YEAR_FROM + YEAR_COUNT; y++) years.push(y);
   if(!years.includes(p.year)) years.push(p.year), years.sort((a, b) => a - b);
   $('#auYear').innerHTML = years.map(y => `<option value="${y}"${y === p.year ? ' selected' : ''}>${y} 年度（${y + 1911}）</option>`).join('');
