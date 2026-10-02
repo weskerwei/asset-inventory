@@ -1,0 +1,37 @@
+[debug] [2026-10-02T06:22:13.040Z] ----------------------------------------------------------------------
+[debug] [2026-10-02T06:22:13.042Z] Command:       C:\Users\wesker.wei\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64\node.exe C:\Users\wesker.wei\AppData\Local\npm-cache\_npx\ba4f1959e38407b5\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting --project aetherai-asset-inventory
+[debug] [2026-10-02T06:22:13.042Z] CLI Version:   15.32.1
+[debug] [2026-10-02T06:22:13.042Z] Platform:      win32
+[debug] [2026-10-02T06:22:13.043Z] Node Version:  v24.19.0
+[debug] [2026-10-02T06:22:13.043Z] Detected Agent: unknown
+[debug] [2026-10-02T06:22:13.043Z] Time:          Fri Oct 02 2026 14:22:13 GMT+0800 (台北標準時間)
+[debug] [2026-10-02T06:22:13.043Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-02T06:22:14.118Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-02T06:22:14.118Z] > authorizing via signed-in user (wesker.wei@aetherai.com)
+[debug] [2026-10-02T06:22:14.118Z] [iam] checking project aetherai-asset-inventory for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-10-02T06:22:14.126Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:14.126Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:14.127Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/aetherai-asset-inventory:testIamPermissions [none]
+[debug] [2026-10-02T06:22:14.127Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/aetherai-asset-inventory:testIamPermissions  x-goog-user-project=aetherai-asset-inventory
+[debug] [2026-10-02T06:22:14.127Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/aetherai-asset-inventory:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-10-02T06:22:15.054Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/aetherai-asset-inventory:testIamPermissions 200
+[debug] [2026-10-02T06:22:15.054Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/aetherai-asset-inventory:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-10-02T06:22:15.055Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:15.055Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:15.055Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/aetherai-asset-inventory [none]
+[debug] [2026-10-02T06:22:15.360Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/aetherai-asset-inventory 200
+[debug] [2026-10-02T06:22:15.360Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/aetherai-asset-inventory {"projectId":"aetherai-asset-inventory","projectNumber":"508754987676","displayName":"aetherai-asset-inventory","name":"projects/aetherai-asset-inventory","resources":{"hostingSite":"aetherai-asset-inventory"},"state":"ACTIVE","labels":{"firebase":"enabled"},"etag":"1_1f076407-382c-4be9-a5ba-d465244b7b89"}
+[info] 
+[info] === Deploying to 'aetherai-asset-inventory'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-10-02T06:22:15.365Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:15.365Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:15.365Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/aetherai-asset-inventory/sites/aetherai-asset-inventory [none]
+[debug] [2026-10-02T06:22:16.730Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/aetherai-asset-inventory/sites/aetherai-asset-inventory 200
+[debug] [2026-10-02T06:22:16.730Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/aetherai-asset-inventory/sites/aetherai-asset-inventory {"name":"projects/aetherai-asset-inventory/sites/aetherai-asset-inventory","defaultUrl":"https://aetherai-asset-inventory.web.app","type":"DEFAULT_SITE"}
+[debug] [2026-10-02T06:22:16.731Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:16.731Z] Checked if tokens are valid: true, expires at: 1790925501188
+[debug] [2026-10-02T06:22:16.731Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/aetherai-asset-inventory/versions [none]
+[debug] [2026-10-02T06:22:16.731Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/aetherai-asset-inventory/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
