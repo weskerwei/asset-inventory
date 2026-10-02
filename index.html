@@ -134,6 +134,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 .lbl .lid{font-weight:700;font-size:3.6mm;line-height:1.15;font-family:Consolas,"Courier New",monospace;white-space:nowrap}
 .lbl .lnm{font-size:2.8mm;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .lbl .lsp{font-size:2.2mm;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl .ldt{font-size:2mm;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lbl.bc .lid,.lbl.bc .lnm,.lbl.bc .co,.lbl.bc .lsp{text-align:center}
 #printArea{display:none}
 @media print{
@@ -302,6 +303,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
           <option value="50x30">標籤機 50 × 30 mm（每張一枚）</option>
           <option value="60x40">標籤機 60 × 40 mm（每張一枚）</option>
           <option value="40x25">標籤機 40 × 25 mm（每張一枚）</option>
+          <option value="50x18">標籤機 50 × 18 mm（每張一枚）</option>
           <option value="a4-3x8">A4 貼紙 3 × 8（70 × 37 mm，24 格）</option>
           <option value="a4-4x10">A4 貼紙 4 × 10（48.5 × 25.4 mm，40 格）</option>
           <option value="a4-3x7">A4 貼紙 3 × 7（63.5 × 38.1 mm，21 格）</option>
@@ -318,6 +320,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
       <label class="f grow">標籤抬頭（公司名稱，可留空）<input type="text" id="lblCompany"></label>
     </div>
     <div class="row small" style="gap:16px;margin-bottom:6px">
+      <label><input type="checkbox" id="lblDate"> 顯示採購日期</label>
       <label><input type="checkbox" id="lblSpec"> 顯示規格</label>
       <label><input type="checkbox" id="lblGuides"> 列印裁切輔助線</label>
     </div>
@@ -590,7 +593,7 @@ function blank(){
     extras:[],           // {code,t,by,loc,note}
     log:[],              // 本期盤點過程 {k,t,by,type,id,info}
     labels:{},           // id -> {printedAt,lastPrintedAt,printCount,affixedAt,affixedBy,affixMethod}  標籤列印及黏貼紀錄
-    prefs:{lblSize:'50x30', lblType:'qr', lblSpec:false, lblGuides:false, beep:true, vibe:true, by:'', statG:'dept', scanMode:'audit'}
+    prefs:{lblSize:'50x30', lblType:'qr', lblSpec:false, lblDate:true, lblGuides:false, beep:true, vibe:true, by:'', statG:'dept', scanMode:'audit'}
   };
 }
 function load(){
@@ -1861,6 +1864,8 @@ function renderSettings(){
 /* ======================= 標籤 ======================= */
 const SIZES = {
   '50x30':{w:50,h:30}, '60x40':{w:60,h:40}, '40x25':{w:40,h:25},
+  // 50×18 窄版標籤：字級固定（依比例縮小會太小），名稱只顯示一行
+  '50x18':{w:50,h:18,fixed:{co:1.8, id:3.1, nm:2.1, dt:1.8, sp:1.7, lines:1}},
   'a4-3x8':{w:70,h:37,cols:3,rows:8,mt:0.5,ml:0}, 'a4-4x10':{w:48.5,h:25.4,cols:4,rows:10,mt:21.5,ml:8},
   'a4-3x7':{w:63.5,h:38.1,cols:3,rows:7,mt:15.15,ml:7.25,gap:2.5}
 };
@@ -1879,23 +1884,30 @@ function bcSvg(text, hmm){
   return el.outerHTML;
 }
 function labelHtml(a, sz, opt){
-  const scale = Math.min(sz.w / 50, sz.h / 30);
+  const scale = Math.min(sz.w / 50, sz.h / 30), F = sz.fixed || {};
+  const fs = (k, base) => (F[k] || base * scale).toFixed(2);          // 窄版標籤用固定字級
   const style = `width:${sz.w}mm;height:${sz.h}mm`;
   // 文字依可用寬度自動縮小，確保編號完整顯示（等寬字約 0.6em、中文字約 1em）
-  const fit = (base, textW, units) => Math.min(base * scale, textW / Math.max(units, 1)).toFixed(2);
+  const fit = (k, base, textW, units) => Math.min(F[k] || base * scale, textW / Math.max(units, 1)).toFixed(2);
   const cjkLen = s => [...String(s)].reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 1 : .55), 0);
+  const dateText = opt.date && a.acqDate ? `採購日期 ${a.acqDate}` : '';
   if(opt.type === 'qr'){
     const side = Math.min(sz.h - 3, sz.w * .4);
     const textW = sz.w - 4 - side - 2;
-    const co = opt.company ? `<div class="co" style="font-size:${fit(2.3, textW, cjkLen(opt.company))}mm">${esc(opt.company)}</div>` : '';
-    const sp = opt.spec && a.spec ? `<div class="lsp" style="font-size:${(2.2*scale).toFixed(2)}mm">${esc(a.spec)}</div>` : '';
-    return `<div class="lbl qr" style="${style}"><div class="code" style="width:${side}mm;height:${side}mm">${qrSvg(a.id)}</div><div class="txt">${co}<div class="lid" style="font-size:${fit(3.8, textW, a.id.length * .6)}mm">${esc(a.id)}</div><div class="lnm" style="font-size:${(2.8*scale).toFixed(2)}mm;-webkit-line-clamp:${opt.spec ? 2 : 3}">${esc(a.name)}</div>${sp}</div></div>`;
+    const co = opt.company ? `<div class="co" style="font-size:${fit('co', 2.3, textW, cjkLen(opt.company))}mm">${esc(opt.company)}</div>` : '';
+    const sp = opt.spec && a.spec ? `<div class="lsp" style="font-size:${fs('sp', 2.2)}mm">${esc(a.spec)}</div>` : '';
+    const dt = dateText ? `<div class="ldt" style="font-size:${fit('dt', 2, textW, cjkLen(dateText))}mm">${esc(dateText)}</div>` : '';
+    const lines = F.lines || (opt.spec ? 2 : dateText ? 2 : 3);
+    return `<div class="lbl qr" style="${style}"><div class="code" style="width:${side}mm;height:${side}mm">${qrSvg(a.id)}</div><div class="txt">${co}<div class="lid" style="font-size:${fit('id', 3.8, textW, a.id.length * .6)}mm">${esc(a.id)}</div><div class="lnm" style="font-size:${fs('nm', 2.8)}mm;-webkit-line-clamp:${lines}">${esc(a.name)}</div>${dt}${sp}</div></div>`;
   }
   const textW = sz.w - 4;
-  const co = opt.company ? `<div class="co" style="font-size:${fit(2.3, textW, cjkLen(opt.company))}mm">${esc(opt.company)}</div>` : '';
-  const sp = opt.spec && a.spec ? `<div class="lsp" style="font-size:${(2.2*scale).toFixed(2)}mm">${esc(a.spec)}</div>` : '';
-  const bh = Math.max(6, sz.h * (opt.spec ? .3 : .36));
-  return `<div class="lbl bc" style="${style}">${co}<div class="lnm" style="font-size:${(2.8*scale).toFixed(2)}mm;-webkit-line-clamp:1">${esc(a.name)}</div><div class="code">${bcSvg(a.id, bh)}</div><div class="lid" style="font-size:${fit(3.4, textW, a.id.length * .6)}mm">${esc(a.id)}</div>${sp}</div>`;
+  const small = sz.h < 25;   // 窄版：公司與採購日期合併成一行，留空間給條碼
+  const head = small ? [opt.company, dateText].filter(Boolean).join('　') : opt.company;
+  const co = head ? `<div class="co" style="font-size:${fit('co', 2.3, textW, cjkLen(head))}mm">${esc(head)}</div>` : '';
+  const dt = !small && dateText ? `<div class="ldt" style="font-size:${fs('dt', 2)}mm">${esc(dateText)}</div>` : '';
+  const sp = opt.spec && a.spec && !small ? `<div class="lsp" style="font-size:${fs('sp', 2.2)}mm">${esc(a.spec)}</div>` : '';
+  const bh = small ? 5 : Math.max(6, sz.h * (opt.spec || dateText ? .3 : .36));
+  return `<div class="lbl bc" style="${style}">${co}<div class="lnm" style="font-size:${fs('nm', 2.8)}mm;-webkit-line-clamp:1">${esc(a.name)}</div><div class="code">${bcSvg(a.id, bh)}</div><div class="lid" style="font-size:${fit('id', 3.4, textW, a.id.length * .6)}mm">${esc(a.id)}</div>${dt}${sp}</div>`;
 }
 // 編號比較：依文字＋數字自然排序（A202412009 < A202412010）
 const idCmp = (x, y) => x.localeCompare(y, 'en', {numeric:true, sensitivity:'base'});
@@ -1965,12 +1977,14 @@ $('#btnExportLabels').addEventListener('click', () => {
   XLSX.utils.book_append_sheet(wb, sheet(inScope().filter(a => !isAffixed(a.id)).map(row), W2), '未黏貼');
   downloadWb(wb, `標籤作業紀錄_${stamp()}.xlsx`);
 });
-function lblOpts(){ return {company:$('#lblCompany').value.trim(), type:$('#lblType').value, spec:$('#lblSpec').checked}; }
+function lblOpts(){ return {company:$('#lblCompany').value.trim(), type:$('#lblType').value, spec:$('#lblSpec').checked, date:$('#lblDate').checked}; }
 function renderLabels(first){
   const P = S.prefs;
   if(first !== false){
     $('#lblSize').value = P.lblSize; $('#lblType').value = P.lblType; $('#lblSpec').checked = P.lblSpec; $('#lblGuides').checked = P.lblGuides;
-    if(P.lblCompany == null) P.lblCompany = S.company;
+    $('#lblDate').checked = P.lblDate !== false;
+    // 標籤抬頭預設為公司英文名稱
+    if(P.lblCompany == null || P.lblCompany === '雲象科技股份有限公司') P.lblCompany = 'aetherAI Co., Ltd.';
     $('#lblCompany').value = P.lblCompany;
     const dv = $('#lblDept').value, cv = $('#lblCat').value;
     fillSelect($('#lblDept'), depts(), '全部部門', dv); fillSelect($('#lblCat'), cats(), '全部資產類別', cv);
@@ -1986,9 +2000,9 @@ function renderLabels(first){
   $('#labelPreview').innerHTML = t.slice(0, 12).map(a => labelHtml(a, sz, o)).join('') || '<div class="empty" style="width:100%">沒有可預覽的標籤</div>';
 }
 function skipN(){ const n = parseInt($('#lblSkip').value, 10); return isNaN(n) || n < 1 ? 0 : n - 1; }
-['lblSize','lblType','lblSpec','lblGuides','lblCompany','lblDept','lblCat','lblState','lblFrom','lblTo','lblIds','lblSkip'].forEach(id => {
+['lblSize','lblType','lblSpec','lblDate','lblGuides','lblCompany','lblDept','lblCat','lblState','lblFrom','lblTo','lblIds','lblSkip'].forEach(id => {
   $('#' + id).addEventListener(['lblCompany','lblIds','lblSkip','lblFrom','lblTo'].includes(id) ? 'input' : 'change', () => {
-    Object.assign(S.prefs, {lblSize:$('#lblSize').value, lblType:$('#lblType').value, lblSpec:$('#lblSpec').checked, lblGuides:$('#lblGuides').checked, lblCompany:$('#lblCompany').value});
+    Object.assign(S.prefs, {lblSize:$('#lblSize').value, lblType:$('#lblType').value, lblSpec:$('#lblSpec').checked, lblDate:$('#lblDate').checked, lblGuides:$('#lblGuides').checked, lblCompany:$('#lblCompany').value});
     save(); renderLabels(false);
   });
 });
