@@ -1449,7 +1449,7 @@ function applyDeptUpdate(){
     for(const f of onlyFile) S.assets.push({...f, skip:catSkip.has(catOf(f)) ? catSkip.get(catOf(f)) : NO_AUDIT_CATS.test(catOf(f)), addedFrom:p.name});
   }
   S.recon = {mode:'update', source:p.name, at:new Date().toISOString(), base:S.source, added:add, onlyInFile:onlyFile, notInFile};
-  S.deptSource = p.name;
+  if(p.hasDeptCol) S.deptSource = p.name;   // 只有含部門欄的檔案才算部門資料來源
   const filledText = Object.entries(filled).map(([k, v]) => `${FIELD_NAMES[k]} ${v} 筆`).join('、');
   logEv('import', '', `${p.name}（合併：比對成功 ${n} 筆${add ? `、新增 ${onlyFile.length} 筆` : ''}${filledText ? `、補上 ${filledText}` : ''}）`);
   reindex(); save(true);
