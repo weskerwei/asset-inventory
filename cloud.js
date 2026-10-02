@@ -44,6 +44,8 @@
   async function signIn(){
     const p = new firebase.auth.GoogleAuthProvider();
     p.setCustomParameters({hd:DOMAIN, prompt:'select_account'});
+    // iPhone 主畫面 App 的彈出視窗常無法回傳登入結果，改用整頁跳轉
+    if(typeof IS_IOS !== 'undefined' && IS_IOS && IS_STANDALONE) return auth.signInWithRedirect(p);
     try{ await auth.signInWithPopup(p); }
     catch(e){
       if(['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/cancelled-popup-request'].includes(e.code)) return auth.signInWithRedirect(p);
@@ -339,5 +341,6 @@ function setCloudUi(state, text){
   $('#btnCloudLogout').classList.toggle('hide', state === 'out' || state === 'off');
   st.innerHTML = state === 'out'
     ? '尚未登入。請用公司 Google 帳號登入，才能取得共用的財產清冊並同步盤點結果。'
+      + (typeof IS_IOS !== 'undefined' && IS_IOS && IS_STANDALONE ? '<br><b>iPhone 提醒：</b>若從主畫面圖示開啟的 App 無法完成登入，請改用 Safari 直接開啟網址登入，登入後再從主畫面開啟即可。' : '')
     : `${CLOUD ? `已登入：<b>${esc(CLOUD.name)}</b>（${esc(CLOUD.email)}）<br>` : ''}${esc(text || '')}`;
 }

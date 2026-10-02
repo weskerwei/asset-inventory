@@ -7,6 +7,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="雲象科技財產盤點">
+<script>
+  // LINE 內建瀏覽器無法使用 Google 登入，相機也常無法開啟：自動改用手機的預設瀏覽器開啟
+  (function(){
+    var ua = navigator.userAgent;
+    if(/\bLine\//i.test(ua) && !/openExternalBrowser=1/.test(location.search)){
+      location.replace(location.pathname + (location.search ? location.search + '&' : '?') + 'openExternalBrowser=1' + location.hash);
+    }
+  })();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -152,6 +161,10 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <h2>開始使用</h2>
     <p class="muted">尚未匯入財產清冊。請到「設定」匯入財產目錄清冊 Excel（可直接匯入會計系統產出的「財產目錄清冊」）。</p>
     <button class="btn pri" data-go="settings">前往匯入</button>
+  </div>
+  <div id="inAppBanner" class="card hide" style="border-color:var(--bad);background:var(--bad-bg)">
+    <h2 style="color:var(--bad)">請改用瀏覽器開啟</h2>
+    <p class="small" style="margin:0">你目前是在其他 App 內建的瀏覽器中開啟，無法登入公司帳號，也可能打不開相機。請點畫面右上角（或右下角）的「⋯」選單，選擇「<b>以瀏覽器開啟</b>」（iPhone 選 Safari、Android 選 Chrome）。</p>
   </div>
   <div id="cloudBanner" class="card hide" style="border-color:var(--pri)">
     <h2>請先登入</h2>
@@ -2016,6 +2029,10 @@ $('#prNo').addEventListener('click', () => { printIds = []; $('#dlgPrinted').clo
 window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
 
 /* ======================= 啟動 ======================= */
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_STANDALONE = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const IN_APP = /FBAN|FBAV|FB_IAB|Messenger|Instagram|MicroMessenger|WeChat|\bLine\//i.test(navigator.userAgent);
+$('#inAppBanner').classList.toggle('hide', !IN_APP);
 render();
 if('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
