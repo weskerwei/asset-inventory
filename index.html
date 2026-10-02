@@ -54,7 +54,7 @@ section.view.on{display:block}
 .card h3{font-size:14px;margin:12px 0 6px;color:var(--muted)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grow{flex:1;min-width:140px}
-.btn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 14px;cursor:pointer;white-space:nowrap}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 14px;cursor:pointer;white-space:normal;line-height:1.3;text-align:center;overflow-wrap:anywhere}
 .btn.pri{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:600}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .btn.sm{padding:5px 10px;font-size:13px}
@@ -409,7 +409,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <div class="list" id="logList"></div>
     <div style="text-align:center;padding:8px" class="hide" id="logMoreWrap"><button class="btn sm" id="btnLogMore">顯示更多</button></div>
     <div class="row" style="margin-top:10px">
-      <button class="btn grow" id="btnCheckpoint">存檔目前進度（不清除）</button>
+      <button class="btn grow" id="btnCheckpoint">存檔目前進度</button>
       <button class="btn pri grow" id="btnCloseAudit">結束本期盤點並存檔</button>
     </div>
     <p class="small muted" style="margin:8px 0 0">「結束本期盤點並存檔」會把本期的盤點過程與結果完整存入下方「歷次盤點紀錄」，再清空盤點紀錄、開始新一期。</p>
@@ -454,7 +454,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <h3>多人分頭盤點／換手機</h3>
     <p class="small muted" style="margin-top:0">每支手機各自盤點後匯出「盤點紀錄備份」，再到主要手機或電腦「匯入合併」，即可彙總成一份結果。</p>
     <div class="row">
-      <button class="btn grow" id="btnBackup">匯出盤點紀錄備份（.json）</button>
+      <button class="btn grow" id="btnBackup">匯出備份檔</button>
       <button class="btn grow" id="btnMerge">匯入合併備份</button>
     </div>
     <input type="file" id="mergeFile" accept=".json,application/json" class="hide">
@@ -462,8 +462,8 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   <div class="card">
     <h2>盤點作業</h2>
     <div class="row">
-      <button class="btn grow" id="btnEditAudit2">編輯盤點名稱／基準日</button>
-      <button class="btn grow" id="btnNewAudit">結束本期盤點並存檔，開始新一期</button>
+      <button class="btn grow" id="btnEditAudit2">編輯盤點資訊</button>
+      <button class="btn grow" id="btnNewAudit">結束本期並存檔</button>
     </div>
     <h3>危險操作</h3>
     <button class="btn danger" id="btnWipe">清除全部資料</button>
@@ -604,7 +604,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.02-h';
+const APP_VERSION = '2026.10.02-i';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
