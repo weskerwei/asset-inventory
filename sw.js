@@ -1,10 +1,10 @@
 // 離線快取：App 本身的檔案全部快取，之後沒有網路也能開啟與盤點
-const CACHE = 'asset-inventory-v15';
+const CACHE = 'asset-inventory-v17';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './icon-180.png', './icon-192.png', './icon-512.png',
   './vendor/xlsx.full.min.js', './vendor/qrcode.js',
-  './vendor/JsBarcode.all.min.js', './vendor/html5-qrcode.min.js',
+  './vendor/JsBarcode.all.min.js', './vendor/html5-qrcode.min.js', './vendor/jsQR.js',
   './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js', './vendor/firebase-firestore-compat.js',
   './firebase-config.js', './cloud.js'
 ];

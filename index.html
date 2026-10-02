@@ -104,6 +104,8 @@ label.btn.disabled{opacity:.5;pointer-events:none}
 @keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion: reduce){#scanFlash.on svg{animation:none}}
 #reader video{border-radius:12px;width:100%;display:block;object-fit:cover;max-height:62vh}
+#reader canvas.pv{position:absolute;inset:0;width:100%;height:100%;border-radius:12px;pointer-events:none}
+#reader .diag{position:absolute;left:6px;bottom:6px;font:11px/1.3 Consolas,monospace;color:#fff;background:rgba(0,0,0,.5);padding:2px 6px;border-radius:6px;pointer-events:none;max-width:95%}
 #reader .aim{position:absolute;left:50%;top:50%;width:70%;aspect-ratio:1.25/1;max-height:80%;transform:translate(-50%,-50%);
   border:3px solid rgba(255,255,255,.9);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.28);pointer-events:none}
 #reader{position:relative}
@@ -574,6 +576,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 <script src="vendor/qrcode.js"></script>
 <script src="vendor/JsBarcode.all.min.js"></script>
 <script src="vendor/html5-qrcode.min.js"></script>
+<script src="vendor/jsQR.js"></script>
 <script src="vendor/firebase-app-compat.js"></script>
 <script src="vendor/firebase-auth-compat.js"></script>
 <script src="vendor/firebase-firestore-compat.js"></script>
@@ -582,6 +585,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
+const APP_VERSION = '2026.10.02-d';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1313,6 +1317,52 @@ const SCAN_FORMATS = () => { const F = Html5QrcodeSupportedFormats; return [F.QR
 let camStarting = false, camStream = null, camVideo = null, camTimer = null, camBusy = false, detector = null;
 const waitFor = (fn, ms) => new Promise(res => { const t0 = Date.now(); (function chk(){ if(fn()) return res(true); if(Date.now() - t0 > ms) return res(false); setTimeout(chk, 120); })(); });
 // 相機由 App 自己開啟並播放（iPhone 需要 playsinline + muted），開啟後確認畫面真的有影像，避免黑畫面
+// 判斷畫面是否全黑：取樣 1.2 秒內的幾格，亮度幾乎為 0 且沒有變化即視為黑畫面
+async function isBlack(v){
+  const c = document.createElement('canvas'); c.width = 32; c.height = 24;
+  const x = c.getContext('2d', {willReadFrequently:true});
+  let maxL = 0;
+  for(let i = 0; i < 6; i++){
+    await new Promise(r => setTimeout(r, 200));
+    try{
+      x.drawImage(v, 0, 0, 32, 24);
+      const d = x.getImageData(0, 0, 32, 24).data;
+      for(let j = 0; j < d.length; j += 4) maxL = Math.max(maxL, d[j] * .3 + d[j + 1] * .59 + d[j + 2] * .11);
+    }catch(e){ return false; }
+    if(maxL > 12) return false;
+  }
+  return true;
+}
+// 開啟一組鏡頭設定並確認真的有畫面；失敗或黑畫面時關閉並回報
+async function tryCamera(constraint, box){
+  let stream;
+  try{ stream = await withTimeout(navigator.mediaDevices.getUserMedia({video:constraint, audio:false}), 15000); }
+  catch(e){ return {err:e}; }
+  box.innerHTML = '';
+  const v = document.createElement('video');
+  v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.setAttribute('muted', ''); v.setAttribute('autoplay', '');
+  v.muted = true; v.playsInline = true; v.autoplay = true;
+  box.appendChild(v);
+  v.srcObject = stream;
+  // play() 在沒有影像時可能永遠不會結束，加上逾時
+  try{ await withTimeout(v.play(), 3000); }catch(e){}
+  let ok = await waitFor(() => v.videoWidth > 0 && v.readyState >= 2, 4000);
+  if(!ok){ v.srcObject = null; v.srcObject = stream; try{ await withTimeout(v.play(), 3000); }catch(e){} ok = await waitFor(() => v.videoWidth > 0 && v.readyState >= 2, 3000); }
+  const black = ok ? await isBlack(v) : true;
+  if(!ok || black){
+    stream.getTracks().forEach(tr => { try{ tr.stop(); }catch(e){} });
+    v.srcObject = null; box.innerHTML = '';
+    return {black:true, label:(stream.getVideoTracks()[0] || {}).label || ''};
+  }
+  return {stream, v, label:(stream.getVideoTracks()[0] || {}).label || ''};
+}
+// 後鏡頭排序：一般「後置相機」（廣角）優先，雙鏡頭／三鏡頭等虛擬鏡頭與超廣角、長焦放後面
+function backCameraOrder(ds){
+  const back = ds.filter(d => d.kind === 'videoinput' && !/front|前|user|facetime/i.test(d.label));
+  const score = l => /雙|三|dual|triple/i.test(l) ? 3 : /超廣角|ultra/i.test(l) ? 2 : /長焦|telephoto/i.test(l) ? 2 : /back|rear|後|environment/i.test(l) ? 0 : 1;
+  return back.sort((a, b) => score(a.label) - score(b.label));
+}
+// 相機由 App 自己開啟並播放（iPhone 需要 playsinline + muted），開啟後確認畫面不是黑的
 async function startCam(){
   if(!requireAuditor()) return;
   unlockAudio();
@@ -1324,41 +1374,49 @@ async function startCam(){
   camStarting = true;
   $('#btnCam').disabled = true; $('#btnCam').textContent = '相機啟動中…';
   camMsg('info', '正在開啟相機…若跳出權限詢問，請選「允許」。');
-  const camId = $('#camSel').value;
-  const size = {width:{ideal:1280}, height:{ideal:720}};
-  const tries = camId ? [{deviceId:{exact:camId}, ...size}] : [{facingMode:{exact:'environment'}, ...size}, {facingMode:'environment'}, true];
-  let lastErr = null;
-  for(const v of tries){
-    try{ camStream = await withTimeout(navigator.mediaDevices.getUserMedia({video:v, audio:false}), 15000); lastErr = null; break; }
-    catch(e){ lastErr = e; console.warn('getUserMedia failed', v, e); if(isPermErr(e)) break; }
+  const box = $('#reader'), camId = $('#camSel').value;
+  const tried = [];
+  let got = null, lastErr = null;
+  const attempt = async (c, name) => {
+    if(got) return;
+    camMsg('info', `正在開啟相機（${name}）…若跳出權限詢問，請選「允許」。`);
+    const r = await tryCamera(c, box);
+    if(r.stream) got = r;
+    else if(r.err){ lastErr = r.err; console.warn('camera', name, r.err); }
+    else tried.push(r.label || name);
+  };
+  if(camId){
+    await attempt({deviceId:{exact:camId}}, '指定鏡頭');
+  } else {
+    // 1) 只指定後鏡頭、不指定解析度（部分 iPhone 後鏡頭指定解析度會黑畫面）
+    await attempt({facingMode:'environment'}, '後鏡頭');
+    // 2) 逐一嘗試每顆後鏡頭
+    if(!got && !(lastErr && isPermErr(lastErr))){
+      let ds = [];
+      try{ ds = await navigator.mediaDevices.enumerateDevices(); }catch(e){}
+      for(const d of backCameraOrder(ds)){
+        if(got) break;
+        await attempt({deviceId:{exact:d.deviceId}}, d.label || '後鏡頭');
+      }
+    }
   }
-  if(lastErr || !camStream) return camFail(lastErr || new Error('NotFoundError'));
-  // 建立影片元素
-  const box = $('#reader'); box.innerHTML = '';
-  const v = document.createElement('video');
-  v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.setAttribute('muted', ''); v.setAttribute('autoplay', '');
-  v.muted = true; v.playsInline = true; v.autoplay = true;
-  box.appendChild(v);
+  if(!got){
+    camStarting = false; camOn = false;
+    $('#btnCam').disabled = false; $('#btnCam').textContent = '開啟相機掃描';
+    if(lastErr && (isPermErr(lastErr) || !tried.length)) return camMsg('bad', camErrText(lastErr));
+    return camMsg('bad', `後鏡頭都沒有畫面（黑畫面）。已嘗試：${esc([...new Set(tried)].join('、') || '後鏡頭')}。` +
+      '<br>請確認鏡頭沒有被手機殼或手指擋住；把 Safari（或 App）從多工畫面完全關閉後重新開啟再試。' +
+      '<br>也可以在右側選單改選其他鏡頭，或先使用「拍照掃描」。');
+  }
+  camStream = got.stream; camVideo = got.v;
+  const pv = document.createElement('canvas'); pv.className = 'pv'; box.appendChild(pv);
   const aim = document.createElement('div'); aim.className = 'aim'; box.appendChild(aim);
-  v.srcObject = camStream; camVideo = v;
-  // play() 在沒有影像時可能永遠不會結束，加上逾時
-  try{ await withTimeout(v.play(), 3000); }catch(e){ console.warn('video.play', e); }
-  let ok = await waitFor(() => v.videoWidth > 0 && v.readyState >= 2, 4000);
-  if(!ok){   // iPhone 偶爾第一次不出畫面：重新接上影像再播放一次
-    v.srcObject = null; v.srcObject = camStream;
-    try{ await withTimeout(v.play(), 3000); }catch(e){}
-    ok = await waitFor(() => v.videoWidth > 0 && v.readyState >= 2, 4000);
-  }
-  if(!ok){
-    stopCam();
-    return camMsg('bad', '相機已開啟，但畫面沒有出現（黑畫面）。' + (IS_IOS
-      ? (IS_STANDALONE ? '<br>這是 iPhone「主畫面 App」的已知問題：請改用 <b>Safari 直接開啟網址</b>使用相機掃描，或使用「拍照掃描」。'
-                       : '<br>請把 Safari 完全關閉（從多工畫面滑掉）後重新開啟，再試一次；或使用「拍照掃描」。')
-      : '<br>請重新整理頁面後再試，或使用「拍照掃描」。'));
-  }
+  const dg = document.createElement('div'); dg.className = 'diag'; box.appendChild(dg);
   camStarting = false; camOn = true;
   $('#btnCam').disabled = false; $('#btnCam').textContent = '關閉相機'; camMsg('', '');
-  startDecode(v);
+  camStat.label = got.label;
+  startPreview(got.v, pv);
+  startDecode(got.v, dg);
   listCameras(camId);
 }
 function camFail(e){
@@ -1367,7 +1425,24 @@ function camFail(e){
   camMsg('bad', camErrText(e));
 }
 // 條碼辨識：Android Chrome 用內建 BarcodeDetector（快）；iPhone 等不支援時，定時擷取畫面交給掃描套件辨識
-async function startDecode(v){
+function startPreview(v, pv){
+  const ctx = pv.getContext('2d');
+  const draw = () => {
+    if(!camOn || camVideo !== v) return;
+    if(v.videoWidth){
+      const r = pv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+      const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+      if(pv.width !== W || pv.height !== H){ pv.width = W; pv.height = H; }
+      // 等比例填滿（object-fit: cover）
+      const k = Math.max(W / v.videoWidth, H / v.videoHeight), dw = v.videoWidth * k, dh = v.videoHeight * k;
+      try{ ctx.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh); }catch(e){}
+    }
+    setTimeout(draw, 50);   // 約每秒 20 格
+  };
+  draw();
+}
+const camStat = {frames:0, tries:0, last:'', err:'', label:''};
+async function startDecode(v, dg){
   detector = null;
   if('BarcodeDetector' in window){
     try{
@@ -1377,28 +1452,48 @@ async function startDecode(v){
       if(fm.length) detector = new BarcodeDetector({formats:fm});
     }catch(e){ detector = null; }
   }
-  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', {willReadFrequently:true});
+  const engine = detector ? '內建辨識' : window.jsQR ? 'jsQR' : '掃描套件';
+  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', {willReadFrequently:true}), bcCanvas = document.createElement('canvas');
   photoQr = photoQr || new Html5Qrcode('photoReader', {formatsToSupport:SCAN_FORMATS(), verbose:false});
+  Object.assign(camStat, {frames:0, tries:0, last:'', err:''});   // label 由 startCam 設定
+  let n = 0, lastT = -1;
   const tick = async () => {
     if(!camOn || camVideo !== v) return;
+    if(v.currentTime !== lastT){ camStat.frames++; lastT = v.currentTime; }
     if(!camBusy && v.videoWidth){
-      camBusy = true;
+      camBusy = true; n++;
       try{
+        camStat.tries++;
         if(detector){
           const r = await detector.detect(v);
           if(r && r.length) onDecode(r[0].rawValue);
         } else {
-          // 擷取畫面中央（對準框範圍略放大），縮到最長邊 800 像素再辨識
-          const sw = v.videoWidth * .8, sh = v.videoHeight * .8, k = Math.min(1, 800 / Math.max(sw, sh));
+          // 擷取畫面中央 80%，縮到最長邊 720 像素
+          const sw = v.videoWidth * .8, sh = v.videoHeight * .8, k = Math.min(1, 720 / Math.max(sw, sh));
           canvas.width = Math.round(sw * k); canvas.height = Math.round(sh * k);
           ctx.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
-          const b = await new Promise(r => canvas.toBlob(r, 'image/jpeg', .85));
-          try{ onDecode(await photoQr.scanFile(new File([b], 'f.jpg', {type:'image/jpeg'}), false)); }catch(e){ /* 這一格沒有條碼 */ }
+          let hit = null;
+          if(window.jsQR){
+            const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const q = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
+            if(q && q.data) hit = q.data;
+          }
+          // 一維條碼：每 4 次交給掃描套件辨識一次（較慢）
+          if(!hit && n % 4 === 0){
+            // 一維條碼線條細，用較高解析度（最長邊 1280）
+            const k2 = Math.min(1, 1280 / Math.max(sw, sh));
+            bcCanvas.width = Math.round(sw * k2); bcCanvas.height = Math.round(sh * k2);
+            bcCanvas.getContext('2d').drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, bcCanvas.width, bcCanvas.height);
+            const b = await new Promise(r => bcCanvas.toBlob(r, 'image/jpeg', .9));
+            try{ hit = await photoQr.scanFile(new File([b], 'f.jpg', {type:'image/jpeg'}), false); }catch(e){}
+          }
+          if(hit){ camStat.last = hit; onDecode(hit); }
         }
-      }catch(e){ console.warn('decode', e); }
+      }catch(e){ camStat.err = String(e && e.message || e).slice(0, 60); console.warn('decode', e); }
       camBusy = false;
     }
-    camTimer = setTimeout(tick, detector ? 120 : 250);
+    if(dg) dg.textContent = `v${APP_VERSION}・${camStat.label || ''}・${v.videoWidth}×${v.videoHeight}・rs${v.readyState}${v.paused ? '・暫停' : ''}・影格${camStat.frames}・${engine}${camStat.err ? '・錯誤:' + camStat.err : ''}`;
+    camTimer = setTimeout(tick, detector ? 120 : 160);
   };
   tick();
 }
@@ -1918,6 +2013,7 @@ $('#btnWipe').addEventListener('click', () => {
 function renderSettings(){
   let size = 0; try{ size = (localStorage.getItem(KEY) || '').length; }catch(e){}
   $('#storageInfo').textContent = S.assets.length ? `目前資料：財產 ${S.assets.length} 筆（納入盤點 ${inScope().length} 筆）、初盤 ${Object.keys(S.scans).length} 筆、複盤 ${Object.keys(S.scans2).length} 筆、約 ${Math.round(size / 1024)} KB。` : '';
+  $('#storageInfo').textContent += `　App 版本：${APP_VERSION}`;
 }
 
 /* ======================= 標籤 ======================= */
