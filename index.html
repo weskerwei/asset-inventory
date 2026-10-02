@@ -232,7 +232,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
   <div class="card">
     <div class="row">
       <label class="f grow" style="margin:0">盤點人 <span style="color:var(--bad)">*必填</span><input type="text" id="scanBy" placeholder="請先輸入姓名，例如：王小明" autocomplete="name" enterkeyhint="done"></label>
-      <label class="f grow" style="margin:0">目前位置（選填）<input type="text" id="scanLoc" placeholder="例如：3F 研發區"></label>
+      <label class="f grow" style="margin:0">部門<select id="scanLoc"></select></label>
     </div>
     <div class="small" id="byHint" style="color:var(--bad);margin-top:6px">請先填寫盤點人姓名，才能開始掃描、手動盤點或確認標籤黏貼。</div>
   </div>
@@ -604,7 +604,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.02-g';
+const APP_VERSION = '2026.10.02-h';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1140,7 +1140,7 @@ function record(rawCode, method){
   const id = normId(code);
   if(!requireAuditor()) return 'noby';
   if(S.prefs.scanMode === 'affix') return affix(code, method);
-  const by = S.prefs.by, loc = $('#scanLoc').value.trim();
+  const by = S.prefs.by, loc = $('#scanLoc').value;
   const a = byId.get(id), sc = SC();
   if(a){
     if(sc[id]){
@@ -1157,8 +1157,7 @@ function record(rawCode, method){
     }
     sc[id] = {t:new Date().toISOString(), by, email:CLOUD ? CLOUD.email : '', loc, status:'正常', note:'', method};
     if(CLOUD) CLOUD.putScan(S.round, id, sc[id]);
-    logEv(method === 'manual' ? 'manual' : 'scan', id, loc ? '位置：' + loc : '');
-    if(loc && !a.loc) a.loc = loc;
+    logEv(method === 'manual' ? 'manual' : 'scan', id, loc ? '部門：' + loc + (loc !== deptOf(a) ? `（清冊部門：${deptOf(a)}）` : '') : '');
     save();
     recentIds.unshift(id);
     feedback(a.skip ? 'skip' : 'ok', a, sc[id]);
@@ -1170,7 +1169,7 @@ function record(rawCode, method){
     S.extras.push(x);
     if(CLOUD) CLOUD.putExtra(x);
   }
-  logEv('extra', code, loc ? '位置：' + loc : ''); save();
+  logEv('extra', code, loc ? '部門：' + loc : ''); save();
   feedback('bad', null, null, code);
   return 'bad';
 }
@@ -1230,7 +1229,8 @@ function feedback(kind, a, sc, code){
   const k = kind === 'skip' ? 'ok' : kind === 'same' ? 'bad' : kind;
   beep(k); vibe(k);
   const R = ROUND[S.round];
-  if(kind === 'ok' || kind === 'skip') flash('ok', '掃描成功', `${a.id}　${a.name}`);
+  const pick = $('#scanLoc').value, other = (kind === 'ok' || kind === 'skip') && pick && pick !== deptOf(a);
+  if(kind === 'ok' || kind === 'skip') flash('ok', '掃描成功', `${a.id}　${a.name}${other ? `\n（清冊部門：${deptOf(a)}）` : ''}`);
   else if(kind === 'dup') flash('dup', '重複掃描', `${a.id} 本次${R}已於 ${fmtTime(sc.t).slice(11)} 由 ${sc.by || '—'} 盤點過`);
   else if(kind === 'same') flash('bad', '不可由同一人複盤', `${a.id} 初盤人員為 ${sc.by}`);
   else flash('bad', '清冊外條碼', code);
@@ -1239,7 +1239,7 @@ function feedback(kind, a, sc, code){
   } else if(kind === 'ok' || kind === 'skip'){
     const s1 = S.round === 2 ? S.scans[a.id] : null;
     box.innerHTML = `<div class="result ok"><div class="small">✔ ${ROUND[S.round]}成功${kind === 'skip' ? '（此類別未納入盤點範圍）' : ''}</div>`
-      + (S.round === 2 ? `<div class="small" style="color:${s1 ? 'inherit' : 'var(--bad)'}">${s1 ? `初盤：${esc(s1.by || '—')}（${esc(fmtTime(s1.t))}）` : '⚠ 此財產初盤未盤到（初複盤差異）'}</div>` : '') + `<div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div>
+      + (S.round === 2 ? `<div class="small" style="color:${s1 ? 'inherit' : 'var(--bad)'}">${s1 ? `初盤：${esc(s1.by || '—')}（${esc(fmtTime(s1.t))}）` : '⚠ 此財產初盤未盤到（初複盤差異）'}</div>` : '') + `<div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}</div>${other ? `<div class="small" style="color:var(--warn);font-weight:600">⚠ 此財產登記在「${esc(deptOf(a))}」，不是目前選的「${esc(pick)}」</div>` : ''}
       <div class="row" style="margin-top:8px"><button class="btn sm" data-edit="${esc(a.id)}">記錄狀況／備註</button></div></div>`;
   } else if(kind === 'dup'){
     box.innerHTML = `<div class="result dup"><div class="small">⚠ 本次${ROUND[S.round]}已盤點過</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small muted">於 ${esc(fmtTime(sc.t))} 由 ${esc(sc.by || '—')} 盤點</div></div>`;
@@ -1251,7 +1251,15 @@ function feedback(kind, a, sc, code){
 }
 $('#scanResult').addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if(b) openAsset(b.dataset.edit); });
 
+function fillScanDept(){
+  const sel = $('#scanLoc'), cur = S.prefs.scanDept || '';
+  const list = depts();
+  sel.innerHTML = '<option value="">（不指定部門）</option>' + list.map(d => `<option value="${esc(d)}"${d === cur ? ' selected' : ''}>${esc(d)}</option>`).join('');
+  if(cur && !list.includes(cur)) sel.value = '';
+}
+$('#scanLoc').addEventListener('change', e => { S.prefs.scanDept = e.target.value; save(); });
 function renderScan(){
+  fillScanDept();
   const affixMode = S.prefs.scanMode === 'affix';
   $$('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === S.prefs.scanMode));
   $('#modeBanner').classList.toggle('hide', !affixMode);
@@ -1802,13 +1810,13 @@ function assetRow(a, c){
   const sc = c.scans[a.id];
   const how = s => s ? (s.method === 'manual' ? '手動輸入' : '掃描') : '';
   if(!c._two) return {...base,
-    '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點位置':sc ? sc.loc || '' : '',
+    '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點部門':sc ? sc.loc || '' : '',
     '盤點方式':how(sc), '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
   const s2 = c.scans2[a.id], last = s2 || sc;
   return {...base,
     '初盤結果':sc ? '已盤點' : '未盤點', '初盤時間':sc ? fmtTime(sc.t) : '', '初盤人':sc ? sc.by || '' : '', '初盤方式':how(sc),
     '複盤結果':s2 ? '已盤點' : '未盤點', '複盤時間':s2 ? fmtTime(s2.t) : '', '複盤人':s2 ? s2.by || '' : '', '複盤方式':how(s2),
-    '初複盤比對':CMP_TEXT[compareOf(sc, s2)], '盤點位置':last ? last.loc || '' : '', '實物狀況':last ? last.status || '' : '',
+    '初複盤比對':CMP_TEXT[compareOf(sc, s2)], '盤點部門':last ? last.loc || '' : '', '實物狀況':last ? last.status || '' : '',
     '盤點備註':[sc && sc.note && '初盤：' + sc.note, s2 && s2.note && '複盤：' + s2.note].filter(Boolean).join('；'), '清冊備註':a.note || ''};
 }
 const W = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,12,9,10,18,30];
@@ -1863,7 +1871,7 @@ function buildResultWb(c){
   }
   XLSX.utils.book_append_sheet(wb, sheet(scope.filter(found).map(row), WW), '已盤點');
   XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => !found(a)).map(row), WW), c._two ? '兩次皆未盤到' : '未盤點');
-  XLSX.utils.book_append_sheet(wb, sheet(c.extras.length ? c.extras.map(x => ({'階段':ROUND[exRound(x)], '條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '位置':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [6,22,16,10,14,30]), '清冊外條碼');
+  XLSX.utils.book_append_sheet(wb, sheet(c.extras.length ? c.extras.map(x => ({'階段':ROUND[exRound(x)], '條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '盤點部門':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [6,22,16,10,14,30]), '清冊外條碼');
   // 盤點過程：每一次掃描、重複、清冊外、取消、修改等動作
   const names = new Map(c.assets.map(a => [a.id, a.name]));
   const logRows = (c.log || []).slice().sort((x,y) => x.t.localeCompare(y.t)).map(e => ({'時間':fmtTime(e.t) + ':' + pad(new Date(e.t).getSeconds()), '階段':ROUND[e.r || 1], '人員':e.by, '動作':ACT[e.type] || e.type,
