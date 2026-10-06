@@ -66,7 +66,12 @@
     user = u;
     Object.assign(api, {email, name:u.displayName || email.split('@')[0], uid:u.uid, ready:false});
     CLOUD = api;
-    if(!S.prefs.by){ S.prefs.by = api.name; save(); }
+    // 盤點人預設帶入帳號 @ 前的文字；使用者手動改過的姓名不覆蓋（舊版自動帶入的顯示名稱會換成帳號名稱）
+    const auto = email.split('@')[0];
+    if(!S.prefs.by || S.prefs.by === S.prefs.byAuto || S.prefs.by === u.displayName){
+      S.prefs.by = auto; S.prefs.byAuto = auto; save();
+      if($('#scanBy')) $('#scanBy').value = auto;
+    }
     setCloudUi('sync', '連線中…');
     subscribeWs();
   });
