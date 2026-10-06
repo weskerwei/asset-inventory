@@ -7,18 +7,18 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.auth.token.email.matches('.*@aetherai[.]com$');
     }
-    // 系統擁有者：固定為資產管理部門，且唯一可修改名單的人
+    // 總管理員：可使用全部功能，且是唯一可修改資產管理部門名單的人
     function isOwner() {
       return isStaff() && request.auth.token.email == 'wesker.wei@aetherai.com';
     }
-    // 資產管理部門：擁有者，或列在 roles/main.labelAdmins 的人
+    // 總管理員或資產管理部門（列在 roles/main.labelAdmins 的人）
     function isManager() {
       return isOwner() || (isStaff()
         && exists(/databases/$(database)/documents/roles/main)
         && request.auth.token.email in get(/databases/$(database)/documents/roles/main).data.labelAdmins);
     }
 
-    // 財產清冊、標籤列印與黏貼紀錄：大家可讀，只有資產管理部門可寫
+    // 財產清冊、標籤列印與黏貼紀錄：大家可讀，只有總管理員及資產管理部門可寫
     match /ws/{doc} {
       allow read: if isStaff();
       allow write: if isManager();
@@ -58,7 +58,7 @@ service cloud.firestore {
       }
     }
 
-    // 資產管理部門名單：大家可讀，只有擁有者可修改
+    // 資產管理部門名單：大家可讀，只有總管理員可修改
     match /roles/{doc}       { allow read: if isStaff(); allow write: if isOwner(); }
     // 驗證碼的雜湊值：大家可讀（用來驗證標籤），只有資產管理部門可寫
     match /labelHashes/{doc} { allow read: if isStaff(); allow write: if isManager(); }

@@ -147,7 +147,7 @@
     for(const [uid, d] of labelDocs) if(d.map && d.map[id]) await WS.collection('labels').doc(uid).update(new FP('map', id), FV.delete()).catch(fail);
   }
   async function saveAdmins(list){
-    if(api.email !== OWNER) throw new Error('只有 ' + OWNER + ' 可以修改資產管理部門名單');
+    if(api.email !== OWNER) throw new Error('只有總管理員（' + OWNER + '）可以修改資產管理部門名單');
     const clean = [...new Set(list.map(x => String(x).trim().toLowerCase()).filter(x => x.endsWith('@' + DOMAIN) && x !== OWNER))];
     await ROLES.set({labelAdmins:clean, updatedAt:now(), updatedBy:api.email}, {merge:true});
   }
