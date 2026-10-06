@@ -465,6 +465,17 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
     <p class="small muted" style="margin:8px 0 0">登入後，財產清冊、初盤／複盤結果、清冊外條碼、標籤紀錄及盤點過程都會即時與所有人同步。只要一個人匯入清冊，其他人就會自動取得。沒有網路時仍可盤點，恢復連線後會自動上傳。</p>
   </div>
   <div class="card mgr">
+    <h2>盤點作業</h2>
+    <div class="row">
+      <button class="btn grow" id="btnEditAudit2">編輯盤點資訊</button>
+      <button class="btn grow" id="btnNewAudit">結束本期並存檔</button>
+    </div>
+    <h3>危險操作</h3>
+    <button class="btn danger" id="btnWipe">清除全部資料</button>
+    <p class="small muted">所有資料只儲存在這支手機／這台電腦的瀏覽器中，不會上傳到任何伺服器。清除瀏覽器資料會一併刪除，請定期匯出備份。</p>
+    <p class="small muted" id="storageInfo"></p>
+  </div>
+  <div class="card mgr">
     <h2>匯入財產清冊</h2>
     <div class="drop" id="drop">
       <div style="font-weight:600">點這裡選擇 Excel 檔，或把檔案拖曳到這裡</div>
@@ -490,17 +501,6 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
       <button class="btn grow" id="btnMerge">匯入合併備份</button>
     </div>
     <input type="file" id="mergeFile" accept=".json,application/json" class="hide">
-  </div>
-  <div class="card mgr">
-    <h2>盤點作業</h2>
-    <div class="row">
-      <button class="btn grow" id="btnEditAudit2">編輯盤點資訊</button>
-      <button class="btn grow" id="btnNewAudit">結束本期並存檔</button>
-    </div>
-    <h3>危險操作</h3>
-    <button class="btn danger" id="btnWipe">清除全部資料</button>
-    <p class="small muted">所有資料只儲存在這支手機／這台電腦的瀏覽器中，不會上傳到任何伺服器。清除瀏覽器資料會一併刪除，請定期匯出備份。</p>
-    <p class="small muted" id="storageInfo"></p>
   </div>
 </section>
 </main>
@@ -644,7 +644,7 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-j';
+const APP_VERSION = '2026.10.06-k';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
