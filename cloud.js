@@ -34,7 +34,9 @@
     ready:false, email:'', name:'', uid:'',
     get auditId(){ return auditId; },
     putScan, delScan, putExtra, delExtra, log, putAudit, putMeta, uploadAssets, uploadAssetsSoon,
-    labelsPrinted, labelAffix, unaffix, resetLabels, closeAudit, listArchives, loadArchive, deleteArchive, signOut
+    labelsPrinted, labelAffix, unaffix, resetLabels, closeAudit, listArchives, loadArchive, deleteArchive, signOut,
+    // 標籤驗證碼與標籤管理員
+    hashes:{}, admins:[], isLabelAdmin:() => false, ensureCodes, regenerateCode, codeOf:id => secrets[id] || '', saveAdmins, resetLabelFor
   };
 
   /* ---------- 登入 ---------- */
@@ -73,13 +75,80 @@
 
   function teardown(){
     wsUnsubs.forEach(f => f()); auditUnsubs.forEach(f => f());
+    if(secretUnsub){ secretUnsub(); secretUnsub = null; }
+    secrets = {}; api.hashes = {}; api.admins = [];
     wsUnsubs = []; auditUnsubs = []; meta = null; auditId = null; loadedRev = null;
     memberDocs = new Map(); labelDocs = new Map(); logDocs = new Map();
     api.ready = false;
   }
 
   /* ---------- 訂閱：共用設定與清冊 ---------- */
+  /* ---------- 標籤驗證碼與標籤管理員 ----------
+     labelSecrets/main：財產編號 → 驗證碼（只有標籤管理員能讀寫）
+     labelHashes/main ：財產編號 → SHA-256(編號:驗證碼)（所有人可讀，用來驗證標籤真假）
+     roles/main       ：labelAdmins（標籤管理員 email 清單）；OWNER 固定為管理員（寫在安全規則中） */
+  const OWNER = 'wesker.wei@aetherai.com';
+  let secrets = {}, secretUnsub = null;
+  const ROLES = db.collection('roles').doc('main');
+  const HASHES = db.collection('labelHashes').doc('main');
+  const SECRETS = db.collection('labelSecrets').doc('main');
+  api.isLabelAdmin = () => !!user && (api.email === OWNER || api.admins.includes(api.email));
+  function subscribeLabelSecurity(){
+    wsUnsubs.push(ROLES.onSnapshot(snap => {
+      api.admins = ((snap.data() || {}).labelAdmins || []).map(x => String(x).toLowerCase());
+      if(api.isLabelAdmin() && !secretUnsub){
+        secretUnsub = SECRETS.onSnapshot(sn => { secrets = (sn.data() || {}).codes || {}; refresh(); }, e => console.warn('secrets', e));
+      } else if(!api.isLabelAdmin() && secretUnsub){ secretUnsub(); secretUnsub = null; secrets = {}; }
+      refresh();
+    }, e => console.warn('roles', e)));
+    wsUnsubs.push(HASHES.onSnapshot(snap => { api.hashes = (snap.data() || {}).h || {}; refresh(); }, e => console.warn('hashes', e)));
+  }
+  // 14 碼隨機驗證碼（32 個不易混淆的字元，約 70 位元，無法猜測或暴力推算）
+  const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  function newCode(){
+    const b = new Uint8Array(14); crypto.getRandomValues(b);
+    return [...b].map(x => ALPHA[x & 31]).join('');
+  }
+  // 為還沒有驗證碼的財產產生驗證碼（列印時呼叫）；已有的沿用，確保同一財產每次印出相同標籤
+  async function ensureCodes(ids){
+    if(!api.isLabelAdmin()) throw new Error('需要標籤管理員權限');
+    const snap = await SECRETS.get({source:'server'}).catch(() => SECRETS.get());
+    const cur = (snap.data() || {}).codes || {};
+    const add = {}, addH = {};
+    for(const id of ids) if(!cur[id]){ const c = newCode(); add[id] = c; addH[id] = await labelHash(id, c); }
+    if(Object.keys(add).length){
+      const b = db.batch();
+      b.set(SECRETS, {codes:add, updatedAt:now(), updatedBy:api.email}, {merge:true});
+      b.set(HASHES, {h:addH, updatedAt:now()}, {merge:true});
+      await b.commit();
+    }
+    secrets = {...cur, ...add};
+    return secrets;
+  }
+  // 重新產生驗證碼：舊標籤立即失效
+  async function regenerateCode(id){
+    if(!api.isLabelAdmin()) throw new Error('需要標籤管理員權限');
+    const c = newCode(), h = await labelHash(id, c);
+    const b = db.batch();
+    b.set(SECRETS, {codes:{[id]:c}, updatedAt:now(), updatedBy:api.email}, {merge:true});
+    b.set(HASHES, {h:{[id]:h}, updatedAt:now()}, {merge:true});
+    await b.commit();
+    secrets[id] = c; api.hashes[id] = h;
+    await resetLabelFor(id);
+    return c;
+  }
+  // 清除某財產的列印／黏貼紀錄（重新產生驗證碼後需重印）
+  async function resetLabelFor(id){
+    for(const [uid, d] of labelDocs) if(d.map && d.map[id]) await WS.collection('labels').doc(uid).update(new FP('map', id), FV.delete()).catch(fail);
+  }
+  async function saveAdmins(list){
+    if(!api.isLabelAdmin()) throw new Error('需要標籤管理員權限');
+    const clean = [...new Set(list.map(x => String(x).trim().toLowerCase()).filter(x => x.endsWith('@' + DOMAIN) && x !== OWNER))];
+    await ROLES.set({labelAdmins:clean, updatedAt:now(), updatedBy:api.email}, {merge:true});
+  }
+
   function subscribeWs(){
+    subscribeLabelSecurity();
     wsUnsubs.push(WS.onSnapshot({includeMetadataChanges:true}, async snap => {
       netState.fromCache = snap.metadata.fromCache; updateNet();
       if(!snap.exists){

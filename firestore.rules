@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 只有以公司帳號（@aetherai.com）登入、且 email 已驗證的人
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@aetherai[.]com$');
+    }
+    // 固定的標籤管理員（不會被移除）
+    function isOwner() {
+      return isStaff() && request.auth.token.email == 'wesker.wei@aetherai.com';
+    }
+    // 標籤管理員：固定管理員，或列在 roles/main.labelAdmins 的人
+    function isLabelAdmin() {
+      return isOwner() || (isStaff()
+        && exists(/databases/$(database)/documents/roles/main)
+        && request.auth.token.email in get(/databases/$(database)/documents/roles/main).data.labelAdmins);
+    }
+
+    // 財產清冊、標籤列印紀錄、盤點資料：公司帳號皆可讀寫
+    match /ws/{path=**}     { allow read, write: if isStaff(); }
+    match /audits/{path=**} { allow read, write: if isStaff(); }
+
+    // 標籤管理員名單：大家可讀，只有標籤管理員可修改
+    match /roles/{doc}       { allow read: if isStaff(); allow write: if isLabelAdmin(); }
+    // 驗證碼的雜湊值：大家可讀（用來驗證標籤），只有標籤管理員可寫
+    match /labelHashes/{doc} { allow read: if isStaff(); allow write: if isLabelAdmin(); }
+    // 驗證碼本身：只有標籤管理員可讀寫
+    match /labelSecrets/{doc} { allow read, write: if isLabelAdmin(); }
+  }
+}

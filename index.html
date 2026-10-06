@@ -305,7 +305,11 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 
 <!-- ============ 標籤 ============ -->
 <section class="view" id="v-labels">
-  <div class="card">
+  <div class="card hide" id="lblNoAdmin" style="border-color:var(--warn)">
+    <h2>需要標籤管理員權限</h2>
+    <p class="small muted" style="margin:0">標籤含有防偽驗證碼，只有標籤管理員可以列印或補印。需要列印時請洽標籤管理員；你仍可在下方查看標籤列印及黏貼進度，並在「掃描」頁確認黏貼。</p>
+  </div>
+  <div class="card" id="lblPrintCard">
     <h2>列印財產標籤</h2>
     <div class="row">
       <label class="f grow">標籤尺寸
@@ -391,7 +395,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <p class="small muted" style="margin:8px 0 0">點選部門可查看該部門未黏貼的明細。標籤紀錄與盤點紀錄分開保存，「開始新一期盤點」不會清除標籤紀錄。</p>
     <div style="text-align:right;margin-top:6px"><button class="btn sm danger" id="btnResetLabels">重設標籤紀錄</button></div>
   </div>
-  <div class="card">
+  <div class="card" id="lblPreviewCard">
     <h2>預覽（前 12 張）</h2>
     <div id="labelPreview"></div>
   </div>
@@ -430,6 +434,15 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 
 <!-- ============ 設定 ============ -->
 <section class="view" id="v-settings">
+  <div class="card hide" id="adminCard">
+    <h2>標籤管理員</h2>
+    <p class="small muted" style="margin-top:-4px">標籤管理員可以列印、補印標籤及重新產生驗證碼。wesker.wei@aetherai.com 固定為管理員。</p>
+    <div class="list" id="adminList"></div>
+    <div class="row hide" id="adminAddRow" style="margin-top:8px">
+      <input type="text" id="adminEmail" class="grow" placeholder="輸入公司 email，例如 someone@aetherai.com" autocapitalize="none" autocomplete="off">
+      <button class="btn pri" id="adminAdd">新增</button>
+    </div>
+  </div>
   <div class="card hide" id="cloudCard">
     <h2>雲端同步</h2>
     <div class="small" id="cloudStatus"></div>
@@ -535,6 +548,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
     <button class="btn danger hide" id="daUnscan">取消盤點</button>
     <button class="btn hide" id="daScanNow">標記為已盤點</button>
     <button class="btn" id="daPrint">補印標籤</button>
+    <button class="btn danger hide" id="daRegen">重新產生驗證碼</button>
     <button class="btn" id="daAffix">確認已黏貼</button>
     <span style="flex:1"></span>
     <button class="btn" data-close>關閉</button>
@@ -611,7 +625,7 @@ input.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.05-b';
+const APP_VERSION = '2026.10.06-a';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -688,8 +702,8 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-go]'
 
 /* ======================= 盤點過程紀錄 ======================= */
 const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註',
-  delExtra:'刪除清冊外條碼', sameBy:'複盤人員與初盤相同（未記錄）', round2:'結束初盤、開始複盤', round1back:'退回初盤', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
-const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
+  delExtra:'刪除清冊外條碼', sameBy:'複盤人員與初盤相同（未記錄）', badLabel:'標籤驗證失敗（未記錄）', regen:'重新產生驗證碼', round2:'結束初盤、開始複盤', round1back:'退回初盤', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
+const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', badLabel:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
 function logEv(type, id, info){
   const ev = {k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', r:S.round, type, id:id || '', info:info || ''};
   S.log.push(ev);
@@ -983,6 +997,9 @@ function openAsset(id){
     (L.printedAt ? `<br>首次列印 ${esc(fmtTime(L.printedAt))}${L.printCount > 1 ? `（共印 ${L.printCount} 次，最近 ${esc(fmtTime(L.lastPrintedAt))}）` : ''}` : '') +
     (L.affixedAt ? `<br>黏貼確認 ${esc(fmtTime(L.affixedAt))}・${esc(L.affixedBy || '—')}・${({scan:'掃描', manual:'手動', bulk:'批次'})[L.affixMethod] || ''}` : '');
   $('#daAffix').textContent = L.affixedAt ? '取消黏貼確認' : '確認已黏貼';
+  const admin = !!(CLOUD && CLOUD.isLabelAdmin());
+  $('#daRegen').classList.toggle('hide', !admin);
+  $('#daPrint').classList.toggle('hide', !!(CLOUD && !admin));
   const sc = SC()[id];
   const line = (r, s) => s ? `<b>${ROUND[r]}</b>：${esc(fmtTime(s.t))}・${esc(s.by || '—')}・${s.method === 'manual' ? '手動' : '掃描'}${s.loc ? '・' + esc(s.loc) : ''}${s.status && s.status !== '正常' ? '・' + esc(s.status) : ''}` : `<b>${ROUND[r]}</b>：<span style="color:var(--bad)">未盤到</span>`;
   $('#daScanBox').classList.toggle('hide', !sc && S.round !== 2);
@@ -1029,6 +1046,12 @@ $('#daAffix').addEventListener('click', () => {
     markAffixed(daId, 'manual');
   }
   save(true); $('#dlgAsset').close(); render(); toast('已更新標籤紀錄');
+});
+$('#daRegen').addEventListener('click', async () => {
+  if(!CLOUD || !CLOUD.isLabelAdmin()) return toast('需要標籤管理員權限');
+  if(!confirm(`重新產生 ${daId} 的驗證碼？\n\n舊標籤會立即失效（掃描時顯示「標籤驗證失敗」），需重新列印並黏貼新標籤。此財產的列印／黏貼紀錄會清除。`)) return;
+  try{ await CLOUD.regenerateCode(daId); logEv('regen', daId, '舊標籤作廢'); save(); $('#dlgAsset').close(); render(); toast('已重新產生驗證碼，請重新列印標籤'); }
+  catch(e){ alert('失敗：' + (e.message || e)); }
 });
 $('#daPrint').addEventListener('click', () => { const id = daId; $('#dlgAsset').close(); $('#lblIds').value = id; go('labels'); renderLabels(false); });
 
@@ -1580,7 +1603,7 @@ async function scanPhoto(file){
     try{ text = await photoQr.scanFile(await shrinkImage(file), false); }
     catch(e){ text = await photoQr.scanFile(file, false); }   // 縮圖後辨識不到時，用原圖再試一次
     camMsg('', '');
-    record(text, 'scan');
+    scanLabel(text, 'scan');
   }catch(e){
     beep('bad');
     camMsg('bad', '照片中找不到條碼。請讓條碼在畫面中央、靠近一點並對焦清楚，再拍一次。');
@@ -1600,7 +1623,29 @@ function onDecode(text){
   const now = Date.now();
   if(text === lastCode && now - lastAt < 2500) return;   // 同一張標籤停留在鏡頭前不重複計
   lastCode = text; lastAt = now;
-  record(text, 'scan');
+  scanLabel(text, 'scan');
+}
+// 掃到的條碼先驗證：本公司標籤（AI1:編號:驗證碼）必須與雲端雜湊相符才記錄
+async function scanLabel(raw, method){
+  if(!requireAuditor()) return;
+  const text = String(raw).trim(), m = LABEL_RE.exec(text);
+  if(m){
+    const id = normId(m[1]), a = byId.get(id);
+    if(!a) return record(text, method);                       // 編號不在清冊內 → 清冊外條碼
+    if(!window.FIREBASE_CONFIG) return record(id, method);    // 單機模式無雜湊可比對
+    const want = CLOUD && CLOUD.hashes[id];
+    if(want && want === await labelHash(id, m[2])) return record(id, method);
+    return labelFail(a, want ? '驗證碼不符：可能是偽造或已作廢的標籤' : '此財產尚未產生驗證碼：可能是偽造的標籤', text);
+  }
+  const a = byId.get(normId(text));
+  if(a && window.FIREBASE_CONFIG) return labelFail(a, '舊版標籤（沒有驗證碼），請洽標籤管理員補印新標籤', text);
+  return record(text, method);
+}
+function labelFail(a, reason, text){
+  beep('bad'); vibe('bad');
+  flash('bad', '標籤驗證失敗', `${a.id}　${reason}`);
+  $('#scanResult').innerHTML = `<div class="result bad"><div class="small">✖ 標籤驗證失敗，此筆未記錄</div><div class="big">${esc(a.id)}</div><div>${esc(a.name)}</div><div class="small">${esc(reason)}。請確認標籤，必要時由標籤管理員重新列印。</div></div>`;
+  logEv('badLabel', a.id, reason); save();
 }
 $('#btnCam').addEventListener('click', () => camOn ? stopCam() : startCam());
 $('#camSel').addEventListener('change', async () => { if(camOn){ await stopCam(); startCam(); } });
@@ -2059,7 +2104,26 @@ $('#btnWipe').addEventListener('click', () => {
   if(CLOUD) CLOUD.signOut();
   S = blank(); reindex(); save(true); go('home');
 });
+function renderAdmins(){
+  const card = $('#adminCard');
+  card.classList.toggle('hide', !(CLOUD && CLOUD.ready));
+  if(!CLOUD || !CLOUD.ready) return;
+  const admin = CLOUD.isLabelAdmin(), list = ['wesker.wei@aetherai.com', ...CLOUD.admins.filter(x => x !== 'wesker.wei@aetherai.com')];
+  $('#adminList').innerHTML = list.map(e => `<div class="it"><div class="m"><div class="id" style="font-weight:500">${esc(e)}</div></div>${e === 'wesker.wei@aetherai.com' ? '<span class="pill ok">固定</span>' : admin ? `<button class="btn sm danger" data-rm="${esc(e)}">移除</button>` : ''}</div>`).join('');
+  $('#adminAddRow').classList.toggle('hide', !admin);
+}
+$('#adminList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-rm]'); if(!b) return;
+  if(!confirm(`移除標籤管理員 ${b.dataset.rm}？`)) return;
+  try{ await CLOUD.saveAdmins(CLOUD.admins.filter(x => x !== b.dataset.rm)); toast('已移除'); }catch(err){ alert('失敗：' + err.message); }
+});
+$('#adminAdd').addEventListener('click', async () => {
+  const em = $('#adminEmail').value.trim().toLowerCase();
+  if(!/^[^@\s]+@aetherai\.com$/.test(em)) return toast('請輸入 @aetherai.com 的公司 email');
+  try{ await CLOUD.saveAdmins([...CLOUD.admins, em]); $('#adminEmail').value = ''; toast('已新增標籤管理員'); }catch(err){ alert('失敗：' + err.message); }
+});
 function renderSettings(){
+  renderAdmins();
   let size = 0; try{ size = (localStorage.getItem(KEY) || '').length; }catch(e){}
   $('#storageInfo').textContent = S.assets.length ? `目前資料：財產 ${S.assets.length} 筆（納入盤點 ${inScope().length} 筆）、初盤 ${Object.keys(S.scans).length} 筆、複盤 ${Object.keys(S.scans2).length} 筆、約 ${Math.round(size / 1024)} KB。` : '';
   $('#storageInfo').textContent += `　App 版本：${APP_VERSION}`;
@@ -2086,8 +2150,16 @@ const FONT_PRESETS = {
   lg: {co:2.1, id:3.9, nm:2.7, dt:2.2, sp:2.0, qr:15, padV:1.5, padH:1.5, gap:.35},
   xl: {co:2.3, id:4.3, nm:3.0, dt:2.4, sp:2.1, qr:15, padV:1.5, padH:1.5, gap:.2}
 };
+// 標籤內容：AI1:財產編號:驗證碼；驗證時比對 SHA-256(財產編號:驗證碼) 與雲端的雜湊值
+const LABEL_RE = /^AI1:([^:]+):([A-Z0-9]{8,32})$/i;
+const labelPayload = (id, code) => code ? `AI1:${id}:${code}` : id;
+async function labelHash(id, code){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${id}:${String(code).toUpperCase()}`));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
 function qrSvg(text){
-  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const q = qrcode(0, 'M');
+  q.addData(text, /^[0-9A-Z $%*+\-.\/:]+$/.test(text) ? 'Alphanumeric' : 'Byte'); q.make();
   const n = q.getModuleCount(), m = 1; let d = '';
   for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(q.isDark(r,c)) d += `M${c+m},${r+m}h1v1h-1z`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n+2*m} ${n+2*m}" shape-rendering="crispEdges"><path d="${d}" fill="#000"/></svg>`;
@@ -2116,7 +2188,7 @@ function labelHtml(a, sz, opt){
     const sp = opt.spec && a.spec ? `<div class="lsp" style="font-size:${fs('sp', 2.2)}mm">${esc(a.spec)}</div>` : '';
     const dt = dateText ? `<div class="ldt" style="font-size:${fit('dt', 2, textW, cjkLen(dateText))}mm">${esc(dateText)}</div>` : '';
     const lines = F.lines || (opt.spec ? 2 : dateText ? 2 : 3);
-    return `<div class="lbl qr" style="${style}"><div class="code" style="width:${side}mm;height:${side}mm">${qrSvg(a.id)}</div><div class="txt"${F.gap != null ? ` style="gap:${F.gap}mm"` : ''}>${co}<div class="lid" style="font-size:${fit('id', 3.8, textW, a.id.length * .6)}mm">${esc(a.id)}</div><div class="lnm" style="font-size:${fs('nm', 2.8)}mm;-webkit-line-clamp:${lines}">${esc(a.name)}</div>${dt}${sp}</div></div>`;
+    return `<div class="lbl qr" style="${style}"><div class="code" style="width:${side}mm;height:${side}mm">${qrSvg(labelPayload(a.id, opt.codes && opt.codes[a.id]))}</div><div class="txt"${F.gap != null ? ` style="gap:${F.gap}mm"` : ''}>${co}<div class="lid" style="font-size:${fit('id', 3.8, textW, a.id.length * .6)}mm">${esc(a.id)}</div><div class="lnm" style="font-size:${fs('nm', 2.8)}mm;-webkit-line-clamp:${lines}">${esc(a.name)}</div>${dt}${sp}</div></div>`;
   }
   const textW = sz.w - 4;
   const small = sz.h < 25;   // 窄版：公司與採購日期合併成一行，留空間給條碼
@@ -2125,7 +2197,7 @@ function labelHtml(a, sz, opt){
   const dt = !small && dateText ? `<div class="ldt" style="font-size:${fs('dt', 2)}mm">${esc(dateText)}</div>` : '';
   const sp = opt.spec && a.spec && !small ? `<div class="lsp" style="font-size:${fs('sp', 2.2)}mm">${esc(a.spec)}</div>` : '';
   const bh = small ? 5 : Math.max(6, sz.h * (opt.spec || dateText ? .3 : .36));
-  return `<div class="lbl bc" style="${style}">${co}<div class="lnm" style="font-size:${fs('nm', 2.8)}mm;-webkit-line-clamp:1">${esc(a.name)}</div><div class="code">${bcSvg(a.id, bh)}</div><div class="lid" style="font-size:${fit('id', 3.4, textW, a.id.length * .6)}mm">${esc(a.id)}</div>${dt}${sp}</div>`;
+  return `<div class="lbl bc" style="${style}">${co}<div class="lnm" style="font-size:${fs('nm', 2.8)}mm;-webkit-line-clamp:1">${esc(a.name)}</div><div class="code">${bcSvg(labelPayload(a.id, opt.codes && opt.codes[a.id]), bh)}</div><div class="lid" style="font-size:${fit('id', 3.4, textW, a.id.length * .6)}mm">${esc(a.id)}</div>${dt}${sp}</div>`;
 }
 // 編號比較：依文字＋數字自然排序（A202412009 < A202412010）
 const idCmp = (x, y) => x.localeCompare(y, 'en', {numeric:true, sensitivity:'base'});
@@ -2222,6 +2294,12 @@ function renderLabels(first){
   const ids = $('#lblIds').value.trim();
   $('#lblCount').textContent = S.assets.length ? `將列印 ${t.length} 張標籤${sz.cols ? `，約 ${Math.ceil((t.length + skipN() ) / (sz.cols * sz.rows))} 張 A4` : ''}${ids && !t.length ? '（找不到指定編號）' : ''}` : '尚未匯入財產清冊';
   const o = lblOpts();
+  const admin = !window.FIREBASE_CONFIG || (CLOUD && CLOUD.isLabelAdmin());
+  $('#lblNoAdmin').classList.toggle('hide', admin || !CLOUD);
+  $('#lblPrintCard').classList.toggle('hide', !admin);
+  $('#lblPreviewCard').classList.toggle('hide', !admin);
+  if(!admin) return;
+  o.codes = {}; t.slice(0, 12).forEach(a => o.codes[a.id] = (CLOUD && CLOUD.codeOf(a.id)) || 'PREVIEW00000000');
   $('#labelPreview').innerHTML = t.slice(0, 12).map(a => labelHtml(a, sz, o)).join('') || '<div class="empty" style="width:100%">沒有可預覽的標籤</div>';
 }
 function skipN(){ const n = parseInt($('#lblSkip').value, 10); return isNaN(n) || n < 1 ? 0 : n - 1; }
@@ -2236,11 +2314,18 @@ function skipN(){ const n = parseInt($('#lblSkip').value, 10); return isNaN(n) |
 }));
 $('#a4Reset').addEventListener('click', () => { delete S.prefs.a4Layout; save(); renderLabels(false); toast('已恢復預設版面'); });
 let pageStyle = null;
-$('#btnPrint').addEventListener('click', () => {
+$('#btnPrint').addEventListener('click', async () => {
   const t = labelTargets();
   if(!t.length) return toast('沒有要列印的標籤');
+  if(window.FIREBASE_CONFIG && !(CLOUD && CLOUD.ready)) return requireCloud();
+  if(CLOUD && !CLOUD.isLabelAdmin()) return toast('需要標籤管理員權限才能列印標籤');
   if(t.length > 300 && !confirm(`將產生 ${t.length} 張標籤，可能需要一些時間，確定列印？`)) return;
   const sz = sheetLayout(SIZES[$('#lblSize').value]), o = lblOpts();
+  if(CLOUD){
+    toast('準備驗證碼中…');
+    try{ o.codes = await CLOUD.ensureCodes(t.map(a => a.id)); }
+    catch(e){ return alert('無法取得標籤驗證碼：' + (e.message || e)); }
+  }
   const area = $('#printArea');
   area.classList.toggle('guides', $('#lblGuides').checked);
   let css, html = '';
