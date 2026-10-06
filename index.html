@@ -447,11 +447,8 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 <!-- ============ 設定 ============ -->
 <section class="view" id="v-settings">
   <div class="card hide" id="adminCard">
-    <h2>權限管理</h2>
-    <h3 style="margin:6px 0 4px">總管理員</h3>
-    <div class="list"><div class="it"><div class="m"><div class="id" style="font-weight:500">wesker.wei@aetherai.com</div><div class="nm">最高管理權限，唯一可修改資產管理部門名單</div></div><span class="pill ok">固定</span></div></div>
-    <h3 style="margin:12px 0 4px">資產管理部門</h3>
-    <p class="small muted" style="margin-top:0">可使用全部功能（匯入清冊、匯出結果、列印標籤、結束初盤開始複盤、執行複盤、結束本期等），並負責複盤；其他人員只能進行初盤、填寫盤點備註及結束部門初盤。名單只有總管理員可以修改。</p>
+    <h2>資產管理部門</h2>
+    <p class="small muted" style="margin-top:-4px">可使用全部功能（匯入清冊、匯出結果、列印標籤、結束初盤開始複盤、執行複盤、結束本期等），並負責複盤；其他人員只能進行初盤、填寫盤點備註及結束部門初盤。</p>
     <div class="list" id="adminList"></div>
     <div class="row hide" id="adminAddRow" style="margin-top:8px">
       <input type="text" id="adminEmail" class="grow" placeholder="輸入公司 email，例如 someone@aetherai.com" autocapitalize="none" autocomplete="off">
@@ -524,6 +521,11 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 <dialog id="dlgImport">
   <div class="dh">確認匯入</div>
   <div class="db">
+    <div class="row">
+      <label class="f grow">年度 <span style="color:var(--bad)">*必選</span><select id="impYear"></select></label>
+      <label class="f grow">盤點類別 <span style="color:var(--bad)">*必選</span><select id="impKind"><option value="">請選擇</option><option>年中盤點</option><option>年終盤點</option></select></label>
+    </div>
+    <div class="small" id="impAuditHint" style="margin:-2px 0 10px"></div>
     <div id="impModeBox" class="cats hide" style="margin-bottom:8px">
       <label><input type="radio" name="impMode" id="impModeReplace"><span>以此檔<b>取代</b>財產清冊（作為盤點母體）</span></label>
       <label><input type="radio" name="impMode" id="impModeUpdate"><span><b>合併到目前清冊</b>：新增此檔中的新財產，並依財產編號更新部門／保管人（現有財產不會被刪除）</span></label>
@@ -538,7 +540,7 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
       <div class="cats" id="impCats"></div>
     </div>
   </div>
-  <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="impOk">匯入</button></div>
+  <div class="df"><button class="btn" data-close>取消</button><button class="btn pri" id="impOk" disabled>匯入</button></div>
 </dialog>
 
 <dialog id="dlgAsset">
@@ -642,7 +644,7 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-i';
+const APP_VERSION = '2026.10.06-j';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1843,6 +1845,10 @@ async function handleFile(f){
     $('#impModeReplace').checked = !merge; $('#impModeUpdate').checked = merge;
     $('#impAdd').checked = merge;
     renderImportDialog();
+    const years = []; for(let y = YEAR_FROM; y < YEAR_FROM + YEAR_COUNT; y++) years.push(y);
+    $('#impYear').innerHTML = '<option value="">請選擇</option>' + years.map(y => `<option value="${y}">${y} 年度（${y + 1911}）</option>`).join('');
+    $('#impKind').value = '';
+    updateImpAudit();
     $('#dlgImport').showModal();
   }catch(e){ alert('讀取檔案失敗：' + e.message); }
 }
@@ -1885,9 +1891,32 @@ function renderImportDialog(){
 }
 $('#impModeUpdate').addEventListener('change', renderImportDialog);
 $('#impModeReplace').addEventListener('change', renderImportDialog);
+// 匯入清冊時必須選擇「年度」與「盤點類別」，匯入後即設為本期盤點資訊
+function updateImpAudit(){
+  const y = +$('#impYear').value, k = $('#impKind').value, ok = !!(y && k);
+  $('#impOk').disabled = !ok;
+  const cur = S.audit.name || '';
+  const hasScans = Object.keys(S.scans).length || Object.keys(S.scans2).length;
+  $('#impAuditHint').innerHTML = !ok ? `<span style="color:var(--bad)">請先選擇這份清冊的年度與盤點類別。</span>${cur ? `目前盤點：${esc(cur)}` : ''}`
+    : auditTitle(y, k) === cur ? `匯入到：<b>${esc(cur)}</b>`
+    : `盤點名稱將設為：<b>${esc(auditTitle(y, k))}</b>${cur ? `（原為 ${esc(cur)}）` : ''}${hasScans ? '<br><span style="color:var(--warn)">本期已有盤點紀錄；若要開始新的一期，請先到「設定」結束本期並存檔。</span>' : ''}`;
+}
+$('#impYear').addEventListener('change', updateImpAudit);
+$('#impKind').addEventListener('change', updateImpAudit);
 $('#impOk').addEventListener('click', () => {
   if(!pending) return;
+  const y = +$('#impYear').value, k = $('#impKind').value;
+  if(!y || !k) return toast('請先選擇年度與盤點類別');
   if($('#impModeUpdate').checked) applyDeptUpdate(); else applyReplace();
+  if(auditTitle(y, k) !== S.audit.name || S.audit.year !== y || S.audit.kind !== k){
+    const dateAuto = !S.audit.date || S.audit.date === defaultDate(auditParts(S.audit).year, auditParts(S.audit).kind);
+    S.audit.year = y; S.audit.kind = k; S.audit.name = auditTitle(y, k);
+    if(dateAuto) S.audit.date = defaultDate(y, k);
+    if(!S.audit.startedAt) S.audit.startedAt = new Date().toISOString();
+    logEv('audit', '', `匯入清冊時設定：${S.audit.name}；基準日：${S.audit.date || '—'}`);
+    if(CLOUD) CLOUD.putAudit({name:S.audit.name, year:y, kind:k, date:S.audit.date});
+    save(true);
+  }
   pending = null; $('#dlgImport').close(); go('home');
 });
 const FILL_KEYS = ['acqDate', 'spec', 'cat', 'qty', 'deptId', 'keeperId', 'note'];
