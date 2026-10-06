@@ -518,6 +518,15 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 <div class="toast" id="toast"></div>
 
 <!-- 對話框 -->
+<dialog id="dlgImpRemind">
+  <div class="dh">匯入前請先確認盤點資訊</div>
+  <div class="db">
+    <p class="small" style="margin-top:0">匯入財產清冊前，請先點「編輯盤點資訊」確認本次盤點的<b>年度、盤點類別、基準日</b>是否正確。</p>
+    <div class="small" id="irInfo" style="background:var(--bg);border-radius:9px;padding:8px 10px"></div>
+  </div>
+  <div class="df"><button class="btn" data-close>取消</button><button class="btn" id="irEdit">編輯盤點資訊</button><span style="flex:1"></span><button class="btn pri" id="irGo">已確認，選擇檔案</button></div>
+</dialog>
+
 <dialog id="dlgImport">
   <div class="dh">確認匯入</div>
   <div class="db">
@@ -644,7 +653,7 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-k';
+const APP_VERSION = '2026.10.06-l';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1982,11 +1991,24 @@ function applyReplace(){
 }
 function guessAuditName(){ return auditTitle(ROC(), defaultKind()); }
 const drop = $('#drop');
-drop.addEventListener('click', () => $('#file').click());
+// 匯入前先提醒確認「盤點資訊」；可先去編輯，編輯完回到此提醒再繼續
+let irFile = null, irBack = false;
+function openImpRemind(file){
+  if(!requireMgr()) return;
+  irFile = file || null;
+  const p = auditParts(S.audit);
+  $('#irInfo').innerHTML = `目前盤點資訊<br>盤點名稱：<b>${esc(S.audit.name || '（未設定）')}</b><br>年度：${p.year} 年度　盤點類別：${esc(p.kind)}<br>基準日：${esc(S.audit.date || '（未設定）')}`;
+  $('#irGo').textContent = irFile ? `已確認，匯入「${irFile.name}」` : '已確認，選擇檔案';
+  $('#dlgImpRemind').showModal();
+}
+$('#irEdit').addEventListener('click', () => { irBack = true; $('#dlgImpRemind').close(); openAudit(); });
+$('#irGo').addEventListener('click', () => { $('#dlgImpRemind').close(); const f = irFile; irFile = null; f ? handleFile(f) : $('#file').click(); });
+$('#dlgAudit').addEventListener('close', () => { if(irBack){ irBack = false; setTimeout(() => openImpRemind(irFile), 100); } });
+drop.addEventListener('click', () => openImpRemind());
 $('#file').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
 ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('hover'); }));
 ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('hover'); }));
-drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) openImpRemind(f); });
 
 /* ======================= 匯出 Excel ======================= */
 function sheet(rows, widths){
