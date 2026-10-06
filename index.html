@@ -263,7 +263,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
   </div>
   <div class="card">
     <h2 id="manualTitle">手動輸入財產編號</h2>
-    <p class="small muted" style="margin-top:-6px">標籤破損或無法掃描時使用。</p>
+    <p class="small muted" style="margin-top:-6px" id="manualNote">標籤破損或無法掃描時使用。</p>
     <div class="row">
       <input type="text" id="manualId" class="grow" list="idList" placeholder="輸入或選擇財產編號" autocapitalize="characters" autocomplete="off">
       <datalist id="idList"></datalist>
@@ -625,7 +625,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-c';
+const APP_VERSION = '2026.10.06-d';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1005,7 +1005,7 @@ function openAsset(id){
   $('#daScanBox').classList.toggle('hide', !sc && S.round !== 2);
   $('#daUnscan').classList.toggle('hide', !sc);
   $('#daUnscan').textContent = `取消${ROUND[S.round]}`;
-  $('#daScanNow').classList.toggle('hide', !!sc);
+  $('#daScanNow').classList.toggle('hide', !!sc || S.round !== 2);
   $('#daScanNow').textContent = `標記為已${ROUND[S.round]}`;
   $('#daScanInfo').innerHTML = S.round === 2
     ? line(1, S.scans[id]) + '<br>' + line(2, S.scans2[id]) + `<br>比對：<b>${CMP_TEXT[compareOf(S.scans[id], S.scans2[id])]}</b>`
@@ -1143,6 +1143,8 @@ function requireAuditor(){
   toast('請先填寫盤點人姓名');
   return false;
 }
+// 手動輸入財產編號只在複盤階段開放（標籤黏貼確認不受限）
+const manualAllowed = () => S.prefs.scanMode === 'affix' || S.round === 2;
 // 財產盤點模式必須先選部門（標籤黏貼確認不需要）
 const needDept = () => S.prefs.scanMode !== 'affix' && !$('#scanLoc').value;
 function requireScanner(){
@@ -1161,7 +1163,10 @@ function updateAuditorUi(){
   $('#byHint').classList.toggle('hide', ok);
   $('#scanBy').classList.toggle('need', noBy && $('#scanBy').classList.contains('need'));
   $('#scanLoc').classList.toggle('need', noDept && $('#scanLoc').classList.contains('need'));
-  $('#btnCam').disabled = $('#btnManual').disabled = $('#manualId').disabled = !ok;
+  $('#btnCam').disabled = !ok;
+  $('#btnManual').disabled = $('#manualId').disabled = !ok || !manualAllowed();
+  $('#manualNote').innerHTML = manualAllowed() ? '標籤破損或無法掃描時使用。'
+    : '<span style="color:var(--bad)">初盤階段不開放手動輸入。</span>標籤破損或掃不到時，請用「拍照掃描」，仍無法辨識請回報負責人，由複盤時補登。';
   $('#btnPhoto').classList.toggle('disabled', !ok);
 }
 function affix(code, method){
@@ -1189,6 +1194,7 @@ function record(rawCode, method){
   const id = normId(code);
   if(!requireScanner()) return 'noby';
   if(S.prefs.scanMode === 'affix') return affix(code, method);
+  if(method === 'manual' && !manualAllowed()){ toast('初盤階段不開放手動輸入，請用拍照掃描或回報負責人'); return 'nomanual'; }
   const by = S.prefs.by, loc = $('#scanLoc').value;
   const a = byId.get(id), sc = SC();
   if(a){
