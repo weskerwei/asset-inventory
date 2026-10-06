@@ -653,7 +653,7 @@ body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grays
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-l';
+const APP_VERSION = '2026.10.06-m';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -1855,8 +1855,11 @@ async function handleFile(f){
     $('#impAdd').checked = merge;
     renderImportDialog();
     const years = []; for(let y = YEAR_FROM; y < YEAR_FROM + YEAR_COUNT; y++) years.push(y);
-    $('#impYear').innerHTML = '<option value="">請選擇</option>' + years.map(y => `<option value="${y}">${y} 年度（${y + 1911}）</option>`).join('');
-    $('#impKind').value = '';
+    // 自動帶入剛在提醒視窗確認過的盤點資訊（年度、盤點類別），仍可修改
+    const ap = S.audit.name ? auditParts(S.audit) : null;
+    if(ap && !years.includes(ap.year)) years.push(ap.year), years.sort((x, y) => x - y);
+    $('#impYear').innerHTML = '<option value="">請選擇</option>' + years.map(y => `<option value="${y}"${ap && ap.year === y ? ' selected' : ''}>${y} 年度（${y + 1911}）</option>`).join('');
+    $('#impKind').value = ap ? ap.kind : '';
     updateImpAudit();
     $('#dlgImport').showModal();
   }catch(e){ alert('讀取檔案失敗：' + e.message); }
