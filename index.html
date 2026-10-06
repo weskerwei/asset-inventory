@@ -280,7 +280,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
 <section class="view" id="v-list">
   <div class="card">
     <div class="seg" id="listSeg" style="margin-bottom:10px">
-      <button data-f="all" class="on">全部</button><button data-f="done">已盤點</button><button data-f="todo">未盤點</button><button data-f="diff" id="segDiff">初複盤差異</button><button data-f="extra">清冊外</button>
+      <button data-f="all" class="on">全部</button><button data-f="done">已盤點</button><button data-f="todo">未盤點</button><button data-f="diff" id="segDiff">初複盤差異</button><button data-f="note">有備註</button><button data-f="extra">清冊外</button>
     </div>
     <div class="row">
       <input type="search" id="q" class="grow" placeholder="搜尋編號、名稱、規格、保管人…">
@@ -534,6 +534,8 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     <datalist id="deptList"></datalist>
     <label class="f">保管人<input type="text" id="daKeeper"></label>
     <label class="f">存放地點<input type="text" id="daLoc"></label>
+    <label class="f">盤點備註<textarea id="daANote" rows="2" placeholder="任何一筆都可填，例如：借給業務部使用、送修中、找不到"></textarea></label>
+    <div class="small muted" id="daANoteInfo" style="margin:-4px 0 8px"></div>
     <div class="small" id="daLabelInfo" style="margin-bottom:8px"></div>
     <div id="daScanBox" class="hide">
       <h3>盤點紀錄</h3>
@@ -541,7 +543,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
       <label class="f" style="margin-top:8px">實物狀況
         <select id="daStatus"><option>正常</option><option>損壞</option><option>待報廢</option><option>閒置</option><option>標籤遺失已補貼</option></select>
       </label>
-      <label class="f">盤點備註<input type="text" id="daNote"></label>
+      <label class="f">掃描備註<input type="text" id="daNote"></label>
     </div>
   </div>
   <div class="df">
@@ -625,7 +627,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-d';
+const APP_VERSION = '2026.10.06-e';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -641,6 +643,7 @@ function blank(){
     scans2:{},           // 複盤：同上
     round:1,             // 目前階段：1 初盤、2 複盤
     extras:[],           // {code,t,by,loc,note}
+    notes:{},            // 盤點備註：id -> {text,by,t}（任一筆財產都可填，本期有效）
     log:[],              // 本期盤點過程 {k,t,by,type,id,info}
     labels:{},           // id -> {printedAt,lastPrintedAt,printCount,affixedAt,affixedBy,affixMethod}  標籤列印及黏貼紀錄
     prefs:{lblSize:'60x18', lblType:'qr', lblSpec:false, lblDate:true, lblGuides:false, beep:true, vibe:true, by:'', statG:'dept', scanMode:'audit'}
@@ -667,6 +670,8 @@ if(S.prefs && S.prefs.lblSize === '50x18') S.prefs.lblSize = '60x18';
 if(S.prefs && !S.prefs.a4v60){ delete S.prefs.a4Layout; S.prefs.a4v60 = true; }
 if(!S.log) S.log = [];
 if(!S.scans2) S.scans2 = {};
+if(!S.notes) S.notes = {};
+const noteOf = id => (S.notes[id] && S.notes[id].text) || '';
 if(S.round !== 2) S.round = 1;
 let byId = new Map();
 function reindex(){ byId = new Map(S.assets.map(a => [a.id, a])); }
@@ -701,9 +706,9 @@ function go(v){
 document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if(b) go(b.dataset.go); });
 
 /* ======================= 盤點過程紀錄 ======================= */
-const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註',
+const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註', note:'盤點備註',
   delExtra:'刪除清冊外條碼', sameBy:'複盤人員與初盤相同（未記錄）', badLabel:'標籤驗證失敗（未記錄）', regen:'重新產生驗證碼', round2:'結束初盤、開始複盤', round1back:'退回初盤', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
-const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', badLabel:'dup', extra:'extra', unscan:'change', edit:'change', delExtra:'change'};
+const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', badLabel:'dup', extra:'extra', unscan:'change', edit:'change', note:'change', delExtra:'change'};
 function logEv(type, id, info){
   const ev = {k:Date.now().toString(36) + Math.random().toString(36).slice(2, 7), t:new Date().toISOString(), by:S.prefs.by || '', r:S.round, type, id:id || '', info:info || ''};
   S.log.push(ev);
@@ -738,7 +743,7 @@ const idb = {
 };
 function curCtx(){
   return {company:S.company, audit:{...S.audit}, source:S.source, deptSource:S.deptSource, recon:S.recon,
-    assets:S.assets, scans:S.scans, scans2:S.scans2, round:S.round, extras:S.extras, log:S.log};
+    assets:S.assets, scans:S.scans, scans2:S.scans2, round:S.round, extras:S.extras, log:S.log, notes:S.notes};
 }
 function snapshot(kind){
   const st = stats(), now = new Date().toISOString();
@@ -748,7 +753,7 @@ function snapshot(kind){
     round:S.round,
     summary:{...st, round:S.round, depts:groupStats('dept').map(r => ({g:r.g, total:r.total, done:r.done, d1:r.d1, d2:r.d2, diff:r.diff}))},
     assets:S.assets.map(({id, name, spec, cat, dept, deptId, keeper, keeperId, acqDate, loc, qty, note, skip}) => ({id, name, spec, cat, dept, deptId, keeper, keeperId, acqDate, loc, qty, note, skip})),
-    scans:S.scans, scans2:S.scans2, extras:S.extras, log:S.log
+    scans:S.scans, scans2:S.scans2, extras:S.extras, log:S.log, notes:S.notes
   }));
 }
 
@@ -924,10 +929,11 @@ function filtered(){
     if(listState.filter === 'done' && !SC()[a.id]) return false;
     if(listState.filter === 'todo' && SC()[a.id]) return false;
     if(listState.filter === 'diff' && !isDiff(a.id)) return false;
+    if(listState.filter === 'note' && !noteOf(a.id)) return false;
     if(listState.dept && deptOf(a) !== listState.dept) return false;
     if(listState.cat && catOf(a) !== listState.cat) return false;
     if(listState.lbl && !lblStateOk(a, listState.lbl)) return false;
-    if(q && ![a.id, a.name, a.spec, a.keeper, a.keeperId, a.loc, a.dept, a.deptId].some(v => v && String(v).toLowerCase().includes(q))) return false;
+    if(q && ![a.id, a.name, a.spec, a.keeper, a.keeperId, a.loc, a.dept, a.deptId, noteOf(a.id)].some(v => v && String(v).toLowerCase().includes(q))) return false;
     return true;
   });
 }
@@ -959,7 +965,7 @@ function renderList(){
     const r1 = S.round === 2 ? `・初盤${S.scans[a.id] ? '✓ ' + esc(S.scans[a.id].by || '') : '✗'}` : '';
     const pill = S.round === 2 && isDiff(a.id) ? `<span class="pill bad">${esc(CMP_TEXT[compareOf(S.scans[a.id], S.scans2[a.id])].replace(/^差異：|^異常：/, ''))}</span>`
       : sc ? `<span class="pill ${sc.status && sc.status !== '正常' ? 'warn' : 'ok'}">${esc(sc.status && sc.status !== '正常' ? sc.status : ROUND[S.round] + '已盤')}</span>` : `<span class="pill bad">${ROUND[S.round]}未盤</span>`;
-    return `<div class="it" data-id="${esc(a.id)}"><span class="dot ${sc ? 'ok' : ''}"></span><div class="m"><div class="id">${esc(a.id)}</div><div class="nm">${esc(a.name)}${a.spec ? '｜' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `｜數量 ${esc(a.qty)}` : ''}</div><div class="nm">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}${sc ? '・' + esc(fmtTime(sc.t)) : ''}${r1}・<span style="color:${isAffixed(a.id) ? 'var(--ok)' : 'var(--warn)'}">${labelText(a.id)}</span></div></div>${pill}</div>`;
+    return `<div class="it" data-id="${esc(a.id)}"><span class="dot ${sc ? 'ok' : ''}"></span><div class="m"><div class="id">${esc(a.id)}</div><div class="nm">${esc(a.name)}${a.spec ? '｜' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `｜數量 ${esc(a.qty)}` : ''}</div><div class="nm">${esc(deptOf(a))}${a.keeper ? '・' + esc(a.keeper) : ''}${sc ? '・' + esc(fmtTime(sc.t)) : ''}${r1}・<span style="color:${isAffixed(a.id) ? 'var(--ok)' : 'var(--warn)'}">${labelText(a.id)}</span></div>${noteOf(a.id) ? `<div class="nm" style="color:var(--warn)">盤點備註：${esc(noteOf(a.id))}</div>` : ''}</div>${pill}</div>`;
   }).join('') : '<div class="empty">沒有符合條件的財產</div>';
   $('#moreWrap').classList.toggle('hide', rows.length <= listState.limit);
 }
@@ -991,6 +997,9 @@ function openAsset(id){
   $('#daInfo').innerHTML = `<b>${esc(a.name)}</b>${a.spec ? '<br>' + esc(a.spec) : ''}${a.qty && a.qty != 1 ? `<br>數量：${esc(a.qty)}（一個財產編號含多件）` : ''}<br><span class="muted">${esc(catOf(a))}${a.acqDate ? '　取得日期 ' + esc(a.acqDate) : ''}` +
     `${a.deptId || a.keeperId ? `<br>部門代號 ${esc(a.deptId || '—')}　保管人代號 ${esc(a.keeperId || '—')}` : ''}${a.note ? '<br>備註：' + esc(a.note) : ''}</span>`;
   $('#daDept').value = a.dept || ''; $('#daKeeper').value = a.keeper || ''; $('#daLoc').value = a.loc || '';
+  const N = S.notes[id];
+  $('#daANote').value = noteOf(id);
+  $('#daANoteInfo').textContent = N && N.text ? `最後填寫：${N.by || '—'}・${fmtTime(N.t)}` : '';
   $('#deptList').innerHTML = depts().filter(d => d !== UNSET).map(d => `<option value="${esc(d)}">`).join('');
   const L = S.labels[id] || {};
   $('#daLabelInfo').innerHTML = `標籤：<b style="color:${L.affixedAt ? 'var(--ok)' : 'var(--warn)'}">${labelText(id)}</b>` +
@@ -1019,6 +1028,12 @@ $('#daSave').addEventListener('click', () => {
   const before = [a.dept, a.keeper, a.loc].join('|');
   a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim();
   if(CLOUD && before !== [a.dept, a.keeper, a.loc].join('|')) CLOUD.uploadAssetsSoon();
+  const an = $('#daANote').value.trim();
+  if(an !== noteOf(daId)){
+    const nt = {text:an, by:S.prefs.by || (CLOUD ? CLOUD.email.split('@')[0] : ''), t:new Date().toISOString()};
+    S.notes[daId] = nt; logEv('note', daId, an ? '盤點備註：' + an : '清除盤點備註');
+    if(CLOUD) CLOUD.putNote(daId, nt);
+  }
   const sc = SC()[daId];
   if(sc){
     const st = $('#daStatus').value, nt = $('#daNote').value.trim();
@@ -1888,16 +1903,20 @@ function assetRow(a, c){
   const how = s => s ? (s.method === 'manual' ? '手動輸入' : '掃描') : '';
   if(!c._two) return {...base,
     '盤點結果':sc ? '已盤點' : '未盤點', '盤點時間':sc ? fmtTime(sc.t) : '', '盤點人':sc ? sc.by || '' : '', '盤點部門':sc ? sc.loc || '' : '',
-    '盤點方式':how(sc), '實物狀況':sc ? sc.status || '' : '', '盤點備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
+    '盤點方式':how(sc), '實物狀況':sc ? sc.status || '' : '', ...noteCols(a, c), '掃描備註':sc ? sc.note || '' : '', '清冊備註':a.note || ''};
   const s2 = c.scans2[a.id], last = s2 || sc;
   return {...base,
     '初盤結果':sc ? '已盤點' : '未盤點', '初盤時間':sc ? fmtTime(sc.t) : '', '初盤人':sc ? sc.by || '' : '', '初盤方式':how(sc),
     '複盤結果':s2 ? '已盤點' : '未盤點', '複盤時間':s2 ? fmtTime(s2.t) : '', '複盤人':s2 ? s2.by || '' : '', '複盤方式':how(s2),
     '初複盤比對':CMP_TEXT[compareOf(sc, s2)], '盤點部門':last ? last.loc || '' : '', '實物狀況':last ? last.status || '' : '',
-    '盤點備註':[sc && sc.note && '初盤：' + sc.note, s2 && s2.note && '複盤：' + s2.note].filter(Boolean).join('；'), '清冊備註':a.note || ''};
+    ...noteCols(a, c), '掃描備註':[sc && sc.note && '初盤：' + sc.note, s2 && s2.note && '複盤：' + s2.note].filter(Boolean).join('；'), '清冊備註':a.note || ''};
 }
-const W = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,12,9,10,18,30];
-const W2R = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,9,9,16,9,9,20,14,10,24,30];
+function noteCols(a, c){
+  const n = (c.notes || {})[a.id];
+  return {'盤點備註':n && n.text || '', '備註填寫':n && n.text ? `${n.by || ''} ${fmtTime(n.t)}`.trim() : ''};
+}
+const W = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,12,9,10,30,22,18,30];
+const W2R = [13,26,26,18,11,6,9,14,10,10,14,9,16,9,9,9,16,9,9,20,14,10,30,22,24,30];
 function buildResultWb(c){
   c = {...c, scans2:c.scans2 || {}};
   c._two = c.round === 2 || Object.keys(c.scans2).length > 0;
@@ -1917,7 +1936,7 @@ function buildResultWb(c){
       ['兩次相符', n('both')], ['差異：複盤未盤到', n('only1')], ['差異：初盤未盤到', n('only2')], ['異常：初複盤同一人', n('same')], ['兩次皆未盤到', n('none')]]
       : [['已盤點', st.done], ['未盤點', st.todo], ['盤點完成率', pct(st.done, st.total) || '—'], ['盤點階段', '只有初盤（未進行複盤）']]),
     ['清冊外條碼', st.extra],
-    ['未納入盤點（無形資產等）', c.assets.filter(a => a.skip).length], ['盤點過程紀錄筆數', (c.log || []).length],
+    ['未納入盤點（無形資產等）', c.assets.filter(a => a.skip).length], ['盤點過程紀錄筆數', (c.log || []).length], ['有盤點備註的財產', Object.values(c.notes || {}).filter(n => n && n.text).length],
     ...(c.recon ? [[], ['清冊比對', `${c.recon.source} vs ${c.recon.base}`], [c.recon.mode === 'update' ? '僅在部門資料檔' : '僅在新清冊', c.recon.onlyInFile.length], [c.recon.mode === 'update' ? '僅在盤點清冊' : '僅在原清冊', (c.recon.notInFile || []).length]] : [])
   ];
   const wsInfo = XLSX.utils.aoa_to_sheet(info); wsInfo['!cols'] = [{wch:24},{wch:40}];
@@ -1948,6 +1967,9 @@ function buildResultWb(c){
   }
   XLSX.utils.book_append_sheet(wb, sheet(scope.filter(found).map(row), WW), '已盤點');
   XLSX.utils.book_append_sheet(wb, sheet(scope.filter(a => !found(a)).map(row), WW), c._two ? '兩次皆未盤到' : '未盤點');
+  const noted = scope.filter(a => (c.notes || {})[a.id] && c.notes[a.id].text);
+  XLSX.utils.book_append_sheet(wb, sheet(noted.length ? noted.map(a => ({'財產編號':a.id, '財產名稱':a.name, '部門':deptOf(a), '保管人':a.keeper || '',
+    '盤點結果':found(a) ? '已盤到' : '未盤到', ...noteCols(a, c)})) : [{'財產編號':'（無盤點備註）'}], [13,26,14,10,9,40,22]), '盤點備註');
   XLSX.utils.book_append_sheet(wb, sheet(c.extras.length ? c.extras.map(x => ({'階段':ROUND[exRound(x)], '條碼內容':x.code, '掃描時間':fmtTime(x.t), '盤點人':x.by || '', '盤點部門':x.loc || '', '說明':x.note || ''})) : [{'條碼內容':'（無）'}], [6,22,16,10,14,30]), '清冊外條碼');
   // 盤點過程：每一次掃描、重複、清冊外、取消、修改等動作
   const names = new Map(c.assets.map(a => [a.id, a.name]));
@@ -1982,7 +2004,7 @@ $('#btnExportMaster').addEventListener('click', () => {
 
 /* ---------- 備份與合併 ---------- */
 $('#btnBackup').addEventListener('click', () => {
-  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, round:S.round, scans:S.scans, scans2:S.scans2, extras:S.extras, labels:S.labels, log:S.log,
+  const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, round:S.round, scans:S.scans, scans2:S.scans2, extras:S.extras, labels:S.labels, log:S.log, notes:S.notes,
     assets:S.assets.map(a => ({id:a.id, dept:a.dept, keeper:a.keeper, loc:a.loc}))};
   const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
   const name = `盤點紀錄備份_${S.prefs.by ? S.prefs.by + '_' : ''}${stamp()}.json`;
@@ -2005,6 +2027,7 @@ $('#mergeFile').addEventListener('change', async e => {
       else if(sc.t < cur.t) map[id] = {...sc, status:cur.status !== '正常' ? cur.status : sc.status, note:cur.note || sc.note}; // 保留最早盤點時間
     }
     for(const x of d.extras || []) if(!S.extras.some(y => y.code === x.code && exRound(y) === exRound(x))){ S.extras.push(x); ex++; }
+    for(const [id, nt] of Object.entries(d.notes || {})) if(nt && (!S.notes[id] || nt.t > S.notes[id].t)) S.notes[id] = nt;   // 盤點備註以最新為準
     if(d.round === 2 && S.round === 1 && add2) toast('備份檔含複盤紀錄，但本機仍在初盤階段');
     let lab = 0;
     for(const [id, l] of Object.entries(d.labels || {})){
@@ -2041,7 +2064,7 @@ async function closeAudit(){
     await idb.put(rec);
     if(CLOUD) await CLOUD.closeAudit(rec.summary, next);
   }catch(e){ S.log.pop(); save(true); return alert('存檔失敗，盤點資料未清除：' + (e && e.message || e)); }
-  S.scans = {}; S.scans2 = {}; S.round = 1; S.extras = []; S.log = [];
+  S.scans = {}; S.scans2 = {}; S.round = 1; S.extras = []; S.log = []; S.notes = {};
   S.audit = next;
   logEv('start', '', `接續「${rec.audit.name}」`);
   save(true); render(); toast('已存檔，開始新一期盤點'); openAudit();

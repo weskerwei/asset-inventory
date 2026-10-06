@@ -33,7 +33,7 @@
   const api = {
     ready:false, email:'', name:'', uid:'',
     get auditId(){ return auditId; },
-    putScan, delScan, putExtra, delExtra, log, putAudit, putMeta, uploadAssets, uploadAssetsSoon,
+    putScan, delScan, putExtra, delExtra, putNote, log, putAudit, putMeta, uploadAssets, uploadAssetsSoon,
     labelsPrinted, labelAffix, unaffix, resetLabels, closeAudit, listArchives, loadArchive, deleteArchive, signOut,
     // 標籤驗證碼與標籤管理員
     hashes:{}, admins:[], isLabelAdmin:() => false, ensureCodes, regenerateCode, codeOf:id => secrets[id] || '', saveAdmins, resetLabelFor
@@ -184,6 +184,7 @@
     b.set(db.collection('audits').doc(id), {name:S.audit.name || guessAuditName(), date:S.audit.date || '', startedAt:S.audit.startedAt || now(), round:S.round || 1, round1ClosedAt:S.audit.round1ClosedAt || '', createdAt:now(), createdBy:api.email});
     const m = {}; for(const r of [1, 2]) for(const [k, v] of Object.entries(SC(r))) (m['s' + r] = m['s' + r] || {})[k] = J(strip(v));
     m.ex = {}; for(const x of S.extras) m.ex[`${exRound(x)}|${x.code}`] = J(strip(x));
+    m.an = {}; for(const [k, v] of Object.entries(S.notes || {})) m.an[k] = J(v);
     b.set(db.collection('audits').doc(id).collection('members').doc(api.uid), {name:api.name, email:api.email, updatedAt:now(), ...m});
     if(S.log.length) b.set(db.collection('audits').doc(id).collection('logs').doc(api.uid), {events:S.log.map(J)});
     const lm = {}; for(const [k, v] of Object.entries(S.labels)) lm[k] = J(strip(v));
@@ -251,13 +252,16 @@
 
   /* ---------- 由雲端文件組回畫面使用的資料 ---------- */
   function mergeScans(docs){
-    const s1 = {}, s2 = {}, ex = [], exSeen = new Map();
+    const s1 = {}, s2 = {}, ex = [], exSeen = new Map(), notes = {};
     for(const [uid, d] of docs){
       for(const [r, out] of [[1, s1], [2, s2]]){
         for(const [id, js] of Object.entries(d['s' + r] || {})){
           const o = P(js); if(!o) continue; o.uid = uid;
           if(!out[id] || o.t < out[id].t) out[id] = o;       // 同一筆被多人盤到時，以最早的為準
         }
+      }
+      for(const [id, js] of Object.entries(d.an || {})){             // 盤點備註：多人填寫時以最新的為準
+        const o = P(js); if(o && (!notes[id] || o.t > notes[id].t)) notes[id] = o;
       }
       for(const [key, js] of Object.entries(d.ex || {})){
         const o = P(js); if(!o) continue; o.uid = uid; o._key = key;
@@ -266,9 +270,9 @@
       }
     }
     ex.push(...[...exSeen.values()].sort((a, b) => a.t.localeCompare(b.t)));
-    return {s1, s2, ex};
+    return {s1, s2, ex, notes};
   }
-  function rebuildScans(){ const m = mergeScans(memberDocs); S.scans = m.s1; S.scans2 = m.s2; S.extras = m.ex; }
+  function rebuildScans(){ const m = mergeScans(memberDocs); S.scans = m.s1; S.scans2 = m.s2; S.extras = m.ex; S.notes = m.notes; }
   function mergeLogs(docs){
     const seen = new Set(), out = [];
     for(const d of docs.values()) for(const js of d.events || []){ const e = P(js); if(e && !seen.has(e.k)){ seen.add(e.k); out.push(e); } }
@@ -325,6 +329,9 @@
     if(!auditId) return;
     const key = x._key || `${exRound(x)}|${x.code}`;
     for(const [uid, d] of memberDocs) if(d.ex && d.ex[key]) A().collection('members').doc(uid).update(new FP('ex', key), FV.delete()).catch(fail);
+  }
+  function putNote(id, nt){
+    if(auditId) A().collection('members').doc(api.uid).set({an:{[id]:J(nt)}, updatedAt:now()}, {merge:true}).catch(fail);
   }
   function log(ev){ if(auditId) A().collection('logs').doc(api.uid).set({events:FV.arrayUnion(J(ev))}, {merge:true}).catch(fail); }
   function putAudit(fields){
@@ -385,7 +392,7 @@
     return {id:cid, cloud:true, kind:'close', savedAt:a.closedAt, savedBy:a.closedBy || '', company:a.company || S.company, source:a.source || '',
       audit:{name:a.name, year:a.year, kind:a.kind, date:a.date, startedAt:a.startedAt, round1ClosedAt:a.round1ClosedAt, closedAt:a.closedAt}, round:a.round,
       recon:rc ? P(rc.data().json) : null, assets:chunks.flatMap(x => P(x.data().json) || []),
-      scans:m.s1, scans2:m.s2, extras:m.ex, log:mergeLogs(new Map(ls.docs.map(x => [x.id, x.data()]))), summary:P(a.summary) || {}};
+      scans:m.s1, scans2:m.s2, extras:m.ex, notes:m.notes, log:mergeLogs(new Map(ls.docs.map(x => [x.id, x.data()]))), summary:P(a.summary) || {}};
   }
   async function deleteArchive(cid){
     const id = cid.replace(/^cloud:/, ''), OA = db.collection('audits').doc(id);
