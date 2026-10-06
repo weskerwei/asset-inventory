@@ -33,7 +33,7 @@
   const api = {
     ready:false, email:'', name:'', uid:'',
     get auditId(){ return auditId; },
-    putScan, delScan, putExtra, delExtra, putNote, log, putAudit, putMeta, uploadAssets, uploadAssetsSoon,
+    putScan, delScan, putExtra, delExtra, putNote, putDeptDone, log, putAudit, putMeta, uploadAssets, uploadAssetsSoon,
     labelsPrinted, labelAffix, unaffix, resetLabels, closeAudit, listArchives, loadArchive, deleteArchive, signOut,
     // 標籤驗證碼與標籤管理員
     hashes:{}, admins:[], isLabelAdmin:() => false, ensureCodes, regenerateCode, codeOf:id => secrets[id] || '', saveAdmins, resetLabelFor
@@ -147,7 +147,7 @@
     for(const [uid, d] of labelDocs) if(d.map && d.map[id]) await WS.collection('labels').doc(uid).update(new FP('map', id), FV.delete()).catch(fail);
   }
   async function saveAdmins(list){
-    if(!api.isLabelAdmin()) throw new Error('需要標籤管理員權限');
+    if(api.email !== OWNER) throw new Error('只有 ' + OWNER + ' 可以修改資產管理部門名單');
     const clean = [...new Set(list.map(x => String(x).trim().toLowerCase()).filter(x => x.endsWith('@' + DOMAIN) && x !== OWNER))];
     await ROLES.set({labelAdmins:clean, updatedAt:now(), updatedBy:api.email}, {merge:true});
   }
@@ -223,7 +223,9 @@
   function uploadAssetsSoon(){ clearTimeout(upT); upT = setTimeout(() => uploadAssets().catch(e => toast('清冊上傳失敗：' + e.message)), 800); }
 
   /* ---------- 訂閱：目前這一期盤點 ---------- */
+  let deptSeen = null;
   function subscribeAudit(id){
+    deptSeen = null;
     auditUnsubs.forEach(f => f()); auditUnsubs = [];
     // 第一次切換到雲端時，本機若有雲端沒有的盤點紀錄，先備份到「紀錄」
     if(auditId === null && (Object.keys(S.scans).length || Object.keys(S.scans2).length)){
@@ -234,7 +236,18 @@
     A.collection('members').doc(api.uid).set({name:api.name, email:api.email, updatedAt:now()}, {merge:true});
     auditUnsubs.push(A.onSnapshot(s => {
       const d = s.data() || {};
-      S.audit = {name:d.name || '', year:d.year || null, kind:d.kind || '', date:d.date || '', startedAt:d.startedAt || '', round1ClosedAt:d.round1ClosedAt || ''};
+      const dd = {}; for(const [k, v] of Object.entries(d.deptDone || {})){ const o = P(v); if(o) dd[k] = o; }
+      // 有部門新回報初盤完成時，通知資產管理部門（App 開著時跳出提示）
+      if(deptSeen && api.isLabelAdmin()){
+        const fresh = Object.keys(dd).filter(k => !deptSeen[k]);
+        if(fresh.length){
+          const msg = fresh.map(k => `${k}（${dd[k].by || ''}）`).join('、') + ' 已回報完成初盤';
+          setTimeout(() => alert('通知資產管理部門：\n' + msg), 300);
+          try{ if(window.Notification && Notification.permission === 'granted') new Notification('財產盤點：初盤完成回報', {body:msg}); }catch(e){}
+        }
+      }
+      deptSeen = dd;
+      S.audit = {name:d.name || '', year:d.year || null, kind:d.kind || '', date:d.date || '', startedAt:d.startedAt || '', round1ClosedAt:d.round1ClosedAt || '', deptDone:dd};
       S.round = d.round === 2 ? 2 : 1;
       refresh();
     }));
@@ -329,6 +342,9 @@
     if(!auditId) return;
     const key = x._key || `${exRound(x)}|${x.code}`;
     for(const [uid, d] of memberDocs) if(d.ex && d.ex[key]) A().collection('members').doc(uid).update(new FP('ex', key), FV.delete()).catch(fail);
+  }
+  function putDeptDone(dept, rec){
+    if(auditId) A().update(new FP('deptDone', dept), rec ? J(rec) : FV.delete()).catch(fail);
   }
   function putNote(id, nt){
     if(auditId) A().collection('members').doc(api.uid).set({an:{[id]:J(nt)}, updatedAt:now()}, {merge:true}).catch(fail);

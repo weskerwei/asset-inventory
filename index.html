@@ -127,6 +127,7 @@ dialog .df{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8
 .empty{text-align:center;padding:30px 10px;color:var(--muted)}
 .hide{display:none!important}
 input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
+body.nomgr .mgr{display:none!important}
 
 /* 標籤預覽與列印 */
 #labelPreview{display:flex;flex-wrap:wrap;gap:8px;max-height:420px;overflow:auto;padding:8px;background:var(--chip);border-radius:10px}
@@ -189,7 +190,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
           <div style="font-weight:700;font-size:16px" id="auditName">—</div>
           <div class="small muted" id="auditMeta"></div>
         </div>
-        <button class="btn sm" id="btnEditAudit">編輯盤點資訊</button>
+        <button class="btn sm mgr" id="btnEditAudit">編輯盤點資訊</button>
       </div>
       <div style="margin-top:10px" class="bar"><i id="totalBar" style="width:0"></i></div>
       <div class="small muted" style="margin-top:4px" id="totalPct"></div>
@@ -200,9 +201,17 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
           <div style="font-weight:700">目前階段：<span class="pill ok" id="roundName" style="font-size:14px">初盤</span></div>
           <div class="small muted" id="roundMeta"></div>
         </div>
-        <span class="row" style="gap:6px"><button class="btn sm hide" id="btnRoundBack">退回初盤</button><button class="btn sm pri" id="btnNextRound">結束初盤，開始複盤</button></span>
+        <span class="row" style="gap:6px"><button class="btn sm hide mgr" id="btnRoundBack">退回初盤</button><button class="btn sm pri mgr" id="btnNextRound">結束初盤開始複盤</button></span>
       </div>
       <div id="roundCompare" class="small" style="margin-top:8px"></div>
+    </div>
+    <div class="card" id="deptDoneCard">
+      <h2 style="margin-bottom:4px">部門初盤</h2>
+      <div class="small" id="deptDoneInfo"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn pri grow" id="btnDeptDone">結束部門初盤</button>
+        <button class="btn hide" id="btnDeptUndo">撤回</button>
+      </div>
     </div>
     <div class="kpis">
       <div class="kpi"><b id="kTotal">0</b><span>應盤點</span></div>
@@ -222,7 +231,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     </div>
     <div class="row">
       <button class="btn pri grow" data-go="scan">開始掃描盤點</button>
-      <button class="btn grow" id="btnExportHome">匯出 Excel 盤點結果</button>
+      <button class="btn grow mgr" id="btnExportHome">匯出 Excel 盤點結果</button>
     </div>
   </div>
 </section>
@@ -237,7 +246,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     <div class="small" id="byHint" style="color:var(--bad);margin-top:6px">請先填寫盤點人姓名，才能開始掃描、手動盤點或確認標籤黏貼。</div>
   </div>
   <div class="card">
-    <div class="seg" id="modeSeg" style="margin-bottom:10px">
+    <div class="seg mgr" id="modeSeg" style="margin-bottom:10px">
       <button data-m="audit" class="on">財產盤點</button><button data-m="affix">標籤黏貼確認</button>
     </div>
     <div id="modeBanner" class="small hide" style="background:var(--warn-bg);color:var(--warn);border-radius:9px;padding:7px 10px;margin-bottom:10px">
@@ -435,8 +444,8 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
 <!-- ============ 設定 ============ -->
 <section class="view" id="v-settings">
   <div class="card hide" id="adminCard">
-    <h2>標籤管理員</h2>
-    <p class="small muted" style="margin-top:-4px">標籤管理員可以列印、補印標籤及重新產生驗證碼。wesker.wei@aetherai.com 固定為管理員。</p>
+    <h2>資產管理部門</h2>
+    <p class="small muted" style="margin-top:-4px">名單內的人員可使用全部功能（匯入清冊、匯出結果、列印標籤、開始複盤、執行複盤、結束本期等），並負責複盤；其他人員只能進行初盤、填寫盤點備註及回報本部門初盤完成。名單只有 wesker.wei@aetherai.com 可以修改。</p>
     <div class="list" id="adminList"></div>
     <div class="row hide" id="adminAddRow" style="margin-top:8px">
       <input type="text" id="adminEmail" class="grow" placeholder="輸入公司 email，例如 someone@aetherai.com" autocapitalize="none" autocomplete="off">
@@ -452,7 +461,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     </div>
     <p class="small muted" style="margin:8px 0 0">登入後，財產清冊、初盤／複盤結果、清冊外條碼、標籤紀錄及盤點過程都會即時與所有人同步。只要一個人匯入清冊，其他人就會自動取得。沒有網路時仍可盤點，恢復連線後會自動上傳。</p>
   </div>
-  <div class="card">
+  <div class="card mgr">
     <h2>匯入財產清冊</h2>
     <div class="drop" id="drop">
       <div style="font-weight:600">點這裡選擇 Excel 檔，或把檔案拖曳到這裡</div>
@@ -461,12 +470,12 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
     <p class="small muted">重新匯入清冊時，已盤點的紀錄會依財產編號保留。</p>
   </div>
-  <div class="card">
+  <div class="card mgr">
     <h2>部門資料</h2>
     <p class="small muted" style="margin-top:-6px">若清冊沒有部門欄位：先下載「財產清單（含部門欄）」，在 Excel 填好「部門」欄後，再用上方匯入即可，盤點紀錄不會遺失。也可以在「清單」頁逐筆或批次設定。</p>
     <button class="btn" id="btnExportMaster">下載財產清單（含部門欄）</button>
   </div>
-  <div class="card">
+  <div class="card mgr">
     <h2>匯出與備份</h2>
     <div class="row">
       <button class="btn pri grow" id="btnExport">匯出 Excel 盤點結果</button>
@@ -479,7 +488,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     </div>
     <input type="file" id="mergeFile" accept=".json,application/json" class="hide">
   </div>
-  <div class="card">
+  <div class="card mgr">
     <h2>盤點作業</h2>
     <div class="row">
       <button class="btn grow" id="btnEditAudit2">編輯盤點資訊</button>
@@ -497,8 +506,8 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
   <button data-go="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>總覽</button>
   <button data-go="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 12h10"/></svg>掃描</button>
   <button data-go="list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>清單</button>
-  <button data-go="labels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>標籤</button>
-  <button data-go="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>紀錄</button>
+  <button data-go="labels" class="mgr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>標籤</button>
+  <button data-go="records" class="mgr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>紀錄</button>
   <button data-go="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</button>
 </nav>
 
@@ -547,11 +556,11 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
     </div>
   </div>
   <div class="df">
-    <button class="btn danger hide" id="daUnscan">取消盤點</button>
-    <button class="btn hide" id="daScanNow">標記為已盤點</button>
-    <button class="btn" id="daPrint">補印標籤</button>
-    <button class="btn danger hide" id="daRegen">重新產生驗證碼</button>
-    <button class="btn" id="daAffix">確認已黏貼</button>
+    <button class="btn danger hide mgr" id="daUnscan">取消盤點</button>
+    <button class="btn hide mgr" id="daScanNow">標記為已盤點</button>
+    <button class="btn mgr" id="daPrint">補印標籤</button>
+    <button class="btn danger hide mgr" id="daRegen">重新產生驗證碼</button>
+    <button class="btn mgr" id="daAffix">確認已黏貼</button>
     <span style="flex:1"></span>
     <button class="btn" data-close>關閉</button>
     <button class="btn pri" id="daSave">儲存</button>
@@ -627,7 +636,7 @@ input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-e';
+const APP_VERSION = '2026.10.06-f';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -693,9 +702,21 @@ $$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.close
 const deptOf = a => a.dept || UNSET;
 const catOf = a => a.cat || '未分類';
 
+/* ======================= 權限：資產管理部門 ======================= */
+// 資產管理部門（含 wesker.wei）：匯入、匯出、標籤、開始複盤、複盤、存檔等全部功能
+// 一般部門：初盤掃描、填寫盤點備註、回報本部門初盤完成
+const isMgr = () => !window.FIREBASE_CONFIG || !!(CLOUD && CLOUD.isLabelAdmin());
+function requireMgr(){
+  if(isMgr()) return true;
+  toast('此功能限資產管理部門使用');
+  return false;
+}
+const MGR_VIEWS = ['labels', 'records'];
+
 /* ======================= 分頁切換 ======================= */
 let curView = 'home';
 function go(v){
+  if(!isMgr() && MGR_VIEWS.includes(v)) v = 'home';
   curView = v;
   $$('section.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
   $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.go === v));
@@ -706,7 +727,7 @@ function go(v){
 document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if(b) go(b.dataset.go); });
 
 /* ======================= 盤點過程紀錄 ======================= */
-const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註', note:'盤點備註',
+const ACT = {scan:'掃描盤點', manual:'手動盤點', dup:'重複掃描', extra:'清冊外條碼', unscan:'取消盤點', edit:'修改狀況／備註', note:'盤點備註', deptDone:'回報本部門初盤完成', deptUndo:'撤回初盤完成回報',
   delExtra:'刪除清冊外條碼', sameBy:'複盤人員與初盤相同（未記錄）', badLabel:'標籤驗證失敗（未記錄）', regen:'重新產生驗證碼', round2:'結束初盤、開始複盤', round1back:'退回初盤', import:'匯入清冊', merge:'匯入合併備份', audit:'修改盤點資訊', start:'開始盤點', checkpoint:'存檔目前進度', close:'結束盤點並存檔'};
 const ACT_GROUP = {scan:'ok', manual:'ok', dup:'dup', sameBy:'dup', badLabel:'dup', extra:'extra', unscan:'change', edit:'change', note:'change', delExtra:'change'};
 function logEv(type, id, info){
@@ -832,6 +853,9 @@ function groupStats(key){
 
 /* ======================= 畫面繪製 ======================= */
 function render(){
+  document.body.classList.toggle('nomgr', !isMgr());
+  if(!isMgr() && MGR_VIEWS.includes(curView)) return go('home');
+  if(!isMgr() && S.prefs.scanMode === 'affix') S.prefs.scanMode = 'audit';
   const st = stats();
   $('#hdrTitle').textContent = APP_NAME;
   $('#hdrSub').textContent = S.assets.length ? `${ROUND[S.round]} ${st.done}/${st.total}` : '';
@@ -857,8 +881,9 @@ function renderHome(st){
   $('#roundName').textContent = ROUND[S.round];
   $('#roundMeta').textContent = r2
     ? `初盤已於 ${fmtTime(S.audit.round1ClosedAt) || '—'} 結束。複盤時，同一筆財產的盤點人不可與初盤相同。`
-    : '初盤完成後按「結束初盤，開始複盤」，再由其他人員進行複盤。';
-  $('#btnNextRound').textContent = r2 ? '結束本期盤點並存檔' : '結束初盤，開始複盤';
+    : `各部門盤完後按「結束部門初盤」通知資產管理部門；已回報 ${Object.keys(deptDone()).length} / ${depts().length} 個部門。${isMgr() ? '各部門都回報後，按「結束初盤開始複盤」。' : ''}`;
+  $('#btnNextRound').textContent = r2 ? '結束本期盤點並存檔' : '結束初盤開始複盤';
+  renderDeptDone(r2);
   $('#btnRoundBack').classList.toggle('hide', !(r2 && !Object.keys(S.scans2).length));
   $('#roundCompare').innerHTML = r2
     ? `初盤盤到 <b>${st.done1}</b>　複盤盤到 <b>${st.done2}</b>　兩次相符 <b style="color:var(--ok)">${st.both}</b>　` +
@@ -872,18 +897,18 @@ function renderHome(st){
   let tot = {total:0, done:0};
   let h = r2
     ? `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">初盤</th><th class="n">複盤</th><th class="n">差異</th><th style="width:24%">複盤進度</th></tr></thead><tbody>`
-    : `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th><th style="width:28%">進度</th></tr></thead><tbody>`;
+    : `<thead><tr><th>${g === 'dept' ? '部門' : '資產類別'}</th><th class="n">應盤</th><th class="n">已盤</th><th class="n">未盤</th><th style="width:28%">進度</th>${g === 'dept' ? '<th>回報</th>' : ''}</tr></thead><tbody>`;
   let d1 = 0, d2 = 0, df = 0;
   for(const r of rows){
     tot.total += r.total; tot.done += r.done; d1 += r.d1; d2 += r.d2; df += r.diff;
     const p = r.total ? r.done / r.total * 100 : 0;
     h += r2
       ? `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n">${r.d1}</td><td class="n" style="color:var(--ok)">${r.d2}</td><td class="n" style="color:${r.diff ? 'var(--bad)' : 'inherit'}">${r.diff}</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`
-      : `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n" style="color:var(--ok)">${r.done}</td><td class="n" style="color:${r.total - r.done ? 'var(--bad)' : 'inherit'}">${r.total - r.done}</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`;
+      : `<tr class="click" data-grp="${esc(r.g)}"><td>${esc(r.g)}</td><td class="n">${r.total}</td><td class="n" style="color:var(--ok)">${r.done}</td><td class="n" style="color:${r.total - r.done ? 'var(--bad)' : 'inherit'}">${r.total - r.done}</td><td><div class="bar"><i style="width:${p}%"></i></div></td>${g === 'dept' ? `<td>${deptDone()[r.g] ? '<span class="pill ok">已完成</span>' : ''}</td>` : ''}</tr>`;
   }
   h += r2
     ? `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${d1}</th><th class="n">${d2}</th><th class="n">${df}</th><th></th></tr></tfoot>`
-    : `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${tot.done}</th><th class="n">${tot.total - tot.done}</th><th></th></tr></tfoot>`;
+    : `</tbody><tfoot><tr><th>合計</th><th class="n">${tot.total}</th><th class="n">${tot.done}</th><th class="n">${tot.total - tot.done}</th><th></th>${g === 'dept' ? `<th>${Object.keys(deptDone()).length}/${rows.length}</th>` : ''}</tr></tfoot>`;
   $('#statTable').innerHTML = h;
 }
 $('#roundCompare').addEventListener('click', e => {
@@ -892,17 +917,57 @@ $('#roundCompare').addEventListener('click', e => {
 });
 $('#btnNextRound').addEventListener('click', () => S.round === 2 ? closeAudit() : startRound2());
 $('#btnRoundBack').addEventListener('click', () => {
+  if(!requireMgr()) return;
   if(Object.keys(S.scans2).length) return toast('已有複盤紀錄，無法退回初盤');
   if(!confirm('退回初盤階段？（尚無任何複盤紀錄）')) return;
   S.round = 1; delete S.audit.round1ClosedAt; logEv('round1back', '', '');
   if(CLOUD) CLOUD.putAudit({round:1, round1ClosedAt:null});
   save(true); render();
 });
+/* ---------- 各部門回報初盤完成（任何人都可回報；開始複盤限資產管理部門） ---------- */
+const deptDone = () => S.audit.deptDone || {};
+function renderDeptDone(r2){
+  $('#deptDoneCard').classList.toggle('hide', r2);
+  if(r2) return;
+  const d = S.prefs.scanDept, rec = d && deptDone()[d];
+  const row = d && groupStats('dept').find(r => r.g === d);
+  if(!d){
+    $('#deptDoneInfo').innerHTML = '請先到「掃描」頁選擇你的部門。';
+  } else if(rec){
+    $('#deptDoneInfo').innerHTML = `<b>${esc(d)}</b>：<span style="color:var(--ok);font-weight:600">已回報完成初盤</span><br>${esc(rec.by || '—')}・${esc(fmtTime(rec.t))}（當時已盤 ${rec.done} / ${rec.total}）`;
+  } else {
+    $('#deptDoneInfo').innerHTML = `<b>${esc(d)}</b>：已盤 ${row ? row.done : 0} / ${row ? row.total : 0}，未盤 <b style="color:${row && row.total - row.done ? 'var(--bad)' : 'inherit'}">${row ? row.total - row.done : 0}</b>。<br>部門盤完後，按「結束部門初盤」確認並通知資產管理部門。`;
+  }
+  $('#btnDeptDone').classList.toggle('hide', !d || !!rec);
+  $('#btnDeptDone').textContent = d ? `結束部門初盤（${d}）` : '結束部門初盤';
+  $('#btnDeptUndo').classList.toggle('hide', !rec || !(isMgr() || rec.email === (CLOUD && CLOUD.email) || (!CLOUD && rec.by === S.prefs.by)));
+}
+$('#btnDeptDone').addEventListener('click', () => {
+  if(!requireAuditor()) return;
+  const d = S.prefs.scanDept; if(!d) return go('scan');
+  const row = groupStats('dept').find(r => r.g === d) || {done:0, total:0};
+  const left = row.total - row.done;
+  if(!confirm(`結束「${d}」的初盤並通知資產管理部門？\n\n已盤 ${row.done} / ${row.total}${left ? `，還有 ${left} 筆未盤到（可在清單填寫盤點備註說明原因）` : ''}。`)) return;
+  const rec = {by:S.prefs.by, email:CLOUD ? CLOUD.email : '', t:new Date().toISOString(), done:row.done, total:row.total};
+  S.audit.deptDone = {...deptDone(), [d]:rec};
+  logEv('deptDone', '', `${d}：已盤 ${row.done} / ${row.total}`);
+  if(CLOUD) CLOUD.putDeptDone(d, rec);
+  save(true); render(); toast('已通知資產管理部門');
+});
+$('#btnDeptUndo').addEventListener('click', () => {
+  const d = S.prefs.scanDept; if(!d || !deptDone()[d]) return;
+  if(!confirm(`撤回「${d}」的初盤完成回報？`)) return;
+  const m = {...deptDone()}; delete m[d]; S.audit.deptDone = m;
+  logEv('deptUndo', '', d);
+  if(CLOUD) CLOUD.putDeptDone(d, null);
+  save(true); render(); toast('已撤回');
+});
 function startRound2(){
   if(!S.assets.length) return toast('尚未匯入財產清冊');
-  if(!requireAuditor()) return;
+  if(!requireAuditor() || !requireMgr()) return;
   const st = stats();
-  if(!confirm(`結束初盤並開始複盤？\n\n初盤已盤 ${st.done}／應盤 ${st.total}，未盤 ${st.todo}。\n\n・結束後不能再新增初盤紀錄\n・複盤時，同一筆財產必須由「不同於初盤」的人員盤點`)) return;
+  const notYet = depts().filter(d => !deptDone()[d]);
+  if(!confirm(`結束初盤開始複盤？\n\n初盤已盤 ${st.done}／應盤 ${st.total}，未盤 ${st.todo}。${notYet.length ? `\n尚未回報完成初盤的部門：${notYet.join('、')}` : '\n所有部門都已回報完成初盤。'}\n\n・開始後不能再新增初盤紀錄\n・複盤由資產管理部門執行，同一筆財產必須由「不同於初盤」的人員盤點`)) return;
   logEv('round2', '', `初盤已盤 ${st.done}／應盤 ${st.total}`);
   S.round = 2; S.audit.round1ClosedAt = new Date().toISOString();
   if(CLOUD) CLOUD.putAudit({round:2, round1ClosedAt:S.audit.round1ClosedAt});
@@ -975,7 +1040,7 @@ $('#fDept').addEventListener('change', e => { listState.dept = e.target.value; r
 $('#fCat').addEventListener('change', e => { listState.cat = e.target.value; renderList(); });
 $('#fLbl').addEventListener('change', e => { listState.lbl = e.target.value; renderList(); });
 $('#btnBulkAffix').addEventListener('click', () => {
-  if(!requireAuditor()) return;
+  if(!requireAuditor() || !requireMgr()) return;
   const rows = filtered().filter(a => !isAffixed(a.id));
   if(!rows.length) return toast('目前篩選沒有未黏貼的財產');
   if(!confirm(`將目前篩選中 ${rows.length} 筆「未黏貼」的財產標記為已黏貼（確認人：${S.prefs.by}）。\n建議只在已逐一核對實物後使用，確定？`)) return;
@@ -1002,6 +1067,7 @@ function openAsset(id){
   $('#daANoteInfo').textContent = N && N.text ? `最後填寫：${N.by || '—'}・${fmtTime(N.t)}` : '';
   $('#deptList').innerHTML = depts().filter(d => d !== UNSET).map(d => `<option value="${esc(d)}">`).join('');
   const L = S.labels[id] || {};
+  $('#daDept').disabled = $('#daKeeper').disabled = $('#daLoc').disabled = !isMgr();
   $('#daLabelInfo').innerHTML = `標籤：<b style="color:${L.affixedAt ? 'var(--ok)' : 'var(--warn)'}">${labelText(id)}</b>` +
     (L.printedAt ? `<br>首次列印 ${esc(fmtTime(L.printedAt))}${L.printCount > 1 ? `（共印 ${L.printCount} 次，最近 ${esc(fmtTime(L.lastPrintedAt))}）` : ''}` : '') +
     (L.affixedAt ? `<br>黏貼確認 ${esc(fmtTime(L.affixedAt))}・${esc(L.affixedBy || '—')}・${({scan:'掃描', manual:'手動', bulk:'批次'})[L.affixMethod] || ''}` : '');
@@ -1021,12 +1087,14 @@ function openAsset(id){
     : sc ? line(1, sc) : '';
   $('#daStatus').closest('label').classList.toggle('hide', !sc); $('#daNote').closest('label').classList.toggle('hide', !sc);
   if(sc){ $('#daStatus').value = sc.status || '正常'; $('#daNote').value = sc.note || ''; }
+  const mine = !!sc && (isMgr() || !CLOUD || sc.uid === CLOUD.uid);
+  $('#daStatus').disabled = $('#daNote').disabled = !mine;
   $('#dlgAsset').showModal();
 }
 $('#daSave').addEventListener('click', () => {
   const a = byId.get(daId); if(!a) return;
   const before = [a.dept, a.keeper, a.loc].join('|');
-  a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim();
+  if(isMgr()){ a.dept = $('#daDept').value.trim(); a.keeper = $('#daKeeper').value.trim(); a.loc = $('#daLoc').value.trim(); }
   if(CLOUD && before !== [a.dept, a.keeper, a.loc].join('|')) CLOUD.uploadAssetsSoon();
   const an = $('#daANote').value.trim();
   if(an !== noteOf(daId)){
@@ -1035,7 +1103,7 @@ $('#daSave').addEventListener('click', () => {
     if(CLOUD) CLOUD.putNote(daId, nt);
   }
   const sc = SC()[daId];
-  if(sc){
+  if(sc && !$('#daStatus').disabled){
     const st = $('#daStatus').value, nt = $('#daNote').value.trim();
     if(st !== (sc.status || '正常') || nt !== (sc.note || '')) logEv('edit', daId, `狀況：${st}${nt ? '；備註：' + nt : ''}`);
     sc.status = st; sc.note = nt;
@@ -1051,6 +1119,7 @@ $('#daUnscan').addEventListener('click', () => {
 });
 $('#daScanNow').addEventListener('click', () => { if(!requireAuditor()) return; record(daId, 'manual'); $('#dlgAsset').close(); render(); });
 $('#daAffix').addEventListener('click', () => {
+  if(!requireMgr()) return;
   const L = S.labels[daId];
   if(L && L.affixedAt){
     if(!confirm(`確定取消 ${daId} 的黏貼確認？`)) return;
@@ -1081,6 +1150,7 @@ $('#exSave').addEventListener('click', () => { S.extras[exIdx].note = $('#exNote
 $('#exDel').addEventListener('click', () => { if(!confirm('確定刪除這筆清冊外條碼？')) return; logEv('delExtra', S.extras[exIdx].code, S.extras[exIdx].note || ''); if(CLOUD) CLOUD.delExtra(S.extras[exIdx]); S.extras.splice(exIdx,1); save(); $('#dlgExtra').close(); render(); });
 
 $('#btnBulkDept').addEventListener('click', () => {
+  if(!requireMgr()) return;
   const n = filtered().length;
   if(!n) return toast('目前篩選沒有資料');
   $('#bulkInfo').textContent = `將把目前篩選出的 ${n} 筆財產設定為以下部門：`;
@@ -1164,6 +1234,7 @@ const manualAllowed = () => S.prefs.scanMode === 'affix' || S.round === 2;
 const needDept = () => S.prefs.scanMode !== 'affix' && !$('#scanLoc').value;
 function requireScanner(){
   if(!requireAuditor()) return false;
+  if(S.round === 2 && !isMgr()){ toast('複盤由資產管理部門執行'); return false; }
   if(!needDept()) return true;
   if($('#dlgAsset').open) $('#dlgAsset').close();
   if(curView !== 'scan') go('scan');
@@ -1173,8 +1244,8 @@ function requireScanner(){
   return false;
 }
 function updateAuditorUi(){
-  const noBy = !S.prefs.by, noDept = needDept(), ok = !noBy && !noDept;
-  $('#byHint').textContent = `請先${noBy ? '填寫盤點人姓名' : ''}${noBy && noDept ? '並' : ''}${noDept ? '選擇部門' : ''}，才能開始掃描、手動盤點${noDept ? '' : '或確認標籤黏貼'}。`;
+  const noBy = !S.prefs.by, noDept = needDept(), r2lock = S.round === 2 && !isMgr(), ok = !noBy && !noDept && !r2lock;
+  $('#byHint').textContent = r2lock ? '目前為複盤階段，複盤由資產管理部門執行。' : `請先${noBy ? '填寫盤點人姓名' : ''}${noBy && noDept ? '並' : ''}${noDept ? '選擇部門' : ''}，才能開始掃描、手動盤點${noDept ? '' : '或確認標籤黏貼'}。`;
   $('#byHint').classList.toggle('hide', ok);
   $('#scanBy').classList.toggle('need', noBy && $('#scanBy').classList.contains('need'));
   $('#scanLoc').classList.toggle('need', noDept && $('#scanLoc').classList.contains('need'));
@@ -1183,6 +1254,7 @@ function updateAuditorUi(){
   $('#manualNote').innerHTML = manualAllowed() ? '標籤破損或無法掃描時使用。'
     : '<span style="color:var(--bad)">初盤階段不開放手動輸入。</span>標籤破損或掃不到時，請用「拍照掃描」，仍無法辨識請回報負責人，由複盤時補登。';
   $('#btnPhoto').classList.toggle('disabled', !ok);
+  $('#scanBy').disabled = $('#scanLoc').disabled = r2lock;
 }
 function affix(code, method){
   const id = normId(code), a = byId.get(id);
@@ -1368,6 +1440,7 @@ function renderScanSide(){
 }
 $('#modeSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b || b.dataset.m === S.prefs.scanMode) return;
+  if(!requireMgr()) return;
   S.prefs.scanMode = b.dataset.m; save(); renderScan();
   toast(b.dataset.m === 'affix' ? '已切換為「標籤黏貼確認」模式' : '已切換為「財產盤點」模式');
 });
@@ -1742,6 +1815,7 @@ function parseWorkbook(wb){
 }
 let pending = null;
 async function handleFile(f){
+  if(!requireMgr()) return;
   if(!f) return;
   if(!requireCloud()) return;
   try{
@@ -1989,6 +2063,7 @@ function buildResultWb(c){
 }
 const wbName = c => `盤點結果_${(c.audit.name || '財產盤點').replace(/[\\/:*?"<>|]/g,'')}_${stamp()}.xlsx`;
 function exportResult(){
+  if(!requireMgr()) return;
   if(!S.assets.length) return toast('尚未匯入財產清冊');
   const c = curCtx();
   downloadWb(buildResultWb(c), wbName(c));
@@ -1996,6 +2071,7 @@ function exportResult(){
 $('#btnExport').addEventListener('click', exportResult);
 $('#btnExportHome').addEventListener('click', exportResult);
 $('#btnExportMaster').addEventListener('click', () => {
+  if(!requireMgr()) return;
   if(!S.assets.length) return toast('尚未匯入財產清冊');
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheet(S.assets.map(a => ({'財產編號':a.id, '財產名稱':a.name, '規格':a.spec || '', '資產類別':catOf(a), '取得日期':a.acqDate || '', '數量':a.qty || '', '部門代號':a.deptId || '', '部門':a.dept || '', '保管人代號':a.keeperId || '', '保管人':a.keeper || '', '存放地點':a.loc || '', '備註':a.note || ''})), [13,30,30,20,11,6,9,14,10,10,16,30]), '財產清單');
@@ -2004,6 +2080,7 @@ $('#btnExportMaster').addEventListener('click', () => {
 
 /* ---------- 備份與合併 ---------- */
 $('#btnBackup').addEventListener('click', () => {
+  if(!requireMgr()) return;
   const data = {app:'asset-inventory', v:1, exportedAt:new Date().toISOString(), device:S.prefs.by || '', audit:S.audit, round:S.round, scans:S.scans, scans2:S.scans2, extras:S.extras, labels:S.labels, log:S.log, notes:S.notes,
     assets:S.assets.map(a => ({id:a.id, dept:a.dept, keeper:a.keeper, loc:a.loc}))};
   const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
@@ -2052,7 +2129,7 @@ $('#mergeFile').addEventListener('change', async e => {
 
 async function closeAudit(){
   if(!S.assets.length) return toast('尚未匯入財產清冊');
-  if(!requireAuditor()) return;
+  if(!requireAuditor() || !requireMgr()) return;
   const st = stats();
   if(S.round === 1 && !confirm('本期尚未進行「複盤」。\n一次完整的盤點應包含初盤與複盤，確定只以初盤結果結束本期？')) return;
   const sumText = S.round === 2 ? `初盤 ${st.done1}、複盤 ${st.done2}／應盤 ${st.total}，初複盤差異 ${st.diff}` : `初盤 ${st.done1}／應盤 ${st.total}`;
@@ -2071,7 +2148,7 @@ async function closeAudit(){
 }
 async function checkpoint(){
   if(!S.assets.length) return toast('尚未匯入財產清冊');
-  if(!requireAuditor()) return;
+  if(!requireAuditor() || !requireMgr()) return;
   logEv('checkpoint', '', `${ROUND[S.round]}中：初盤 ${stats().done1}、複盤 ${stats().done2}／應盤 ${stats().total}`);
   try{ await idb.put(snapshot('checkpoint')); save(true); render(); toast('已存檔目前進度'); }
   catch(e){ S.log.pop(); alert('存檔失敗：' + (e && e.message || e)); }
@@ -2151,7 +2228,7 @@ function renderAdmins(){
   const card = $('#adminCard');
   card.classList.toggle('hide', !(CLOUD && CLOUD.ready));
   if(!CLOUD || !CLOUD.ready) return;
-  const admin = CLOUD.isLabelAdmin(), list = ['wesker.wei@aetherai.com', ...CLOUD.admins.filter(x => x !== 'wesker.wei@aetherai.com')];
+  const admin = CLOUD.email === 'wesker.wei@aetherai.com', list = ['wesker.wei@aetherai.com', ...CLOUD.admins.filter(x => x !== 'wesker.wei@aetherai.com')];
   $('#adminList').innerHTML = list.map(e => `<div class="it"><div class="m"><div class="id" style="font-weight:500">${esc(e)}</div></div>${e === 'wesker.wei@aetherai.com' ? '<span class="pill ok">固定</span>' : admin ? `<button class="btn sm danger" data-rm="${esc(e)}">移除</button>` : ''}</div>`).join('');
   $('#adminAddRow').classList.toggle('hide', !admin);
 }

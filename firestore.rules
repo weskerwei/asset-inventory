@@ -7,26 +7,62 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.auth.token.email.matches('.*@aetherai[.]com$');
     }
-    // 固定的標籤管理員（不會被移除）
+    // 系統擁有者：固定為資產管理部門，且唯一可修改名單的人
     function isOwner() {
       return isStaff() && request.auth.token.email == 'wesker.wei@aetherai.com';
     }
-    // 標籤管理員：固定管理員，或列在 roles/main.labelAdmins 的人
-    function isLabelAdmin() {
+    // 資產管理部門：擁有者，或列在 roles/main.labelAdmins 的人
+    function isManager() {
       return isOwner() || (isStaff()
         && exists(/databases/$(database)/documents/roles/main)
         && request.auth.token.email in get(/databases/$(database)/documents/roles/main).data.labelAdmins);
     }
 
-    // 財產清冊、標籤列印紀錄、盤點資料：公司帳號皆可讀寫
-    match /ws/{path=**}     { allow read, write: if isStaff(); }
-    match /audits/{path=**} { allow read, write: if isStaff(); }
+    // 財產清冊、標籤列印與黏貼紀錄：大家可讀，只有資產管理部門可寫
+    match /ws/{doc} {
+      allow read: if isStaff();
+      allow write: if isManager();
+      match /{sub}/{id} {
+        allow read: if isStaff();
+        allow write: if isManager();
+      }
+    }
 
-    // 標籤管理員名單：大家可讀，只有標籤管理員可修改
-    match /roles/{doc}       { allow read: if isStaff(); allow write: if isLabelAdmin(); }
-    // 驗證碼的雜湊值：大家可讀（用來驗證標籤），只有標籤管理員可寫
-    match /labelHashes/{doc} { allow read: if isStaff(); allow write: if isLabelAdmin(); }
-    // 驗證碼本身：只有標籤管理員可讀寫
-    match /labelSecrets/{doc} { allow read, write: if isLabelAdmin(); }
+    // 每一期盤點
+    match /audits/{aid} {
+      allow read: if isStaff();
+      allow create, delete: if isManager();
+      // 一般人員只能回報／撤回部門初盤完成（deptDone）
+      allow update: if isManager()
+        || (isStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deptDone']));
+
+      // 每人的盤點資料：一般人員只能寫自己的文件，且不能寫複盤（s2）
+      match /members/{uid} {
+        allow read: if isStaff();
+        allow create: if isManager()
+          || (isStaff() && request.auth.uid == uid && !('s2' in request.resource.data));
+        allow update: if isManager()
+          || (isStaff() && request.auth.uid == uid
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['s2']));
+        allow delete: if isManager();
+      }
+      // 盤點過程紀錄：各自寫自己的
+      match /logs/{uid} {
+        allow read: if isStaff();
+        allow write: if isManager() || (isStaff() && request.auth.uid == uid);
+      }
+      // 結束本期時存檔的清冊快照
+      match /assets/{id} {
+        allow read: if isStaff();
+        allow write: if isManager();
+      }
+    }
+
+    // 資產管理部門名單：大家可讀，只有擁有者可修改
+    match /roles/{doc}       { allow read: if isStaff(); allow write: if isOwner(); }
+    // 驗證碼的雜湊值：大家可讀（用來驗證標籤），只有資產管理部門可寫
+    match /labelHashes/{doc} { allow read: if isStaff(); allow write: if isManager(); }
+    // 驗證碼本身：只有資產管理部門可讀寫
+    match /labelSecrets/{doc} { allow read, write: if isManager(); }
   }
 }
