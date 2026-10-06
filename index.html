@@ -59,9 +59,11 @@ section.view.on{display:block}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .btn.sm{padding:5px 10px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:default}
-input[type=text],input[type=search],select{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 10px;width:100%;min-width:0}
+input[type=text],input[type=search],select,textarea{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 10px;width:100%;min-width:0}
 label.f{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
-label.f > input, label.f > select{margin-top:3px}
+label.f > input, label.f > select, label.f > textarea{margin-top:3px}
+textarea{display:block;font:inherit;color:inherit;resize:vertical}
+input:disabled,select:disabled,textarea:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed}
 .muted{color:var(--muted)} .small{font-size:13px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -127,8 +129,8 @@ dialog .df{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8
 .empty{text-align:center;padding:30px 10px;color:var(--muted)}
 .hide{display:none!important}
 input.need,select.need{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
-body.nomgr .mgr{display:none!important}
-body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grayscale(1)}
+/* 限資產管理部門的按鈕：一般人員看得到但呈灰色、無法點選 */
+body.nomgr .mgr,body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grayscale(1);user-select:none}
 
 /* 標籤預覽與列印 */
 #labelPreview{display:flex;flex-wrap:wrap;gap:8px;max-height:420px;overflow:auto;padding:8px;background:var(--chip);border-radius:10px}
@@ -637,7 +639,7 @@ body.nomgr .mgrlock{opacity:.35;pointer-events:none;filter:grayscale(1)}
 'use strict';
 /* ======================= 資料與儲存 ======================= */
 const APP_NAME = '雲象科技財產盤點';
-const APP_VERSION = '2026.10.06-g';
+const APP_VERSION = '2026.10.06-h';
 let CLOUD = null;   // 雲端同步介面（cloud.js 登入後設定）；null 表示單機模式
 const KEY = 'assetInventory.v1';
 const UNSET = '未指定部門';
@@ -855,6 +857,7 @@ function groupStats(key){
 /* ======================= 畫面繪製 ======================= */
 function render(){
   document.body.classList.toggle('nomgr', !isMgr());
+  $$('.mgr button, button.mgr, .mgr input, .mgr select, .mgrlock').forEach(e => isMgr() ? e.removeAttribute('tabindex') : e.setAttribute('tabindex', '-1'));
   if(!isMgr() && MGR_VIEWS.includes(curView)) return go('home');
   if(!isMgr() && S.prefs.scanMode === 'affix') S.prefs.scanMode = 'audit';
   const st = stats();
@@ -1113,6 +1116,7 @@ $('#daSave').addEventListener('click', () => {
   save(); $('#dlgAsset').close(); render(); toast('已儲存');
 });
 $('#daUnscan').addEventListener('click', () => {
+  if(!requireMgr()) return;
   if(!confirm(`確定取消 ${daId} 的${ROUND[S.round]}紀錄？`)) return;
   const sc = SC()[daId];
   logEv('unscan', daId, `原${ROUND[S.round]}：${fmtTime(sc.t)} ${sc.by || ''}`);
@@ -1180,6 +1184,7 @@ function auditParts(a){
 // 預設基準日：年中為 6/30、年終為 12/31（西元年）
 const defaultDate = (y, k) => `${y + 1911}/${k === '年中盤點' ? '06/30' : '12/31'}`;
 function openAudit(){
+  if(!requireMgr()) return;
   const p = auditParts(S.audit), cur = ROC();
   // 年度選項：115～125 年度；舊資料若在範圍外也保留可選
   const years = []; for(let y = YEAR_FROM; y < YEAR_FROM + YEAR_COUNT; y++) years.push(y);
